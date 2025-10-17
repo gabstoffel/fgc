@@ -105,6 +105,26 @@ float norm(glm::vec4 v)
     return sqrt(vx*vx + vy*vy + vz*vz);
 }
 
+// Roatate geral
+glm::mat4 Matrix_Rotate(float angle, glm::vec4 axis)
+{
+    float c = cos(angle);
+    float s = sin(angle);
+
+    glm::vec4 v = axis / norm(axis);
+
+    float vx = v.x;
+    float vy = v.y;
+    float vz = v.z;
+
+    return Matrix(
+        vx*vx*(1-c)+c , vx*vy*(1-c)-vz*s , vx*vz*(1-c)+vy*s , 0.0f ,
+        vx*vy*(1-c)+vz*s , vy*vy*(1-c)+c , vy*vz*(1-c)-vx*s , 0.0f ,
+        vx*vz*(1-c)-vy*s , vy*vz*(1-c)+vx*s , vz*vz*(1-c)+c , 0.0f ,
+        0.0f , 0.0f , 0.0f , 1.0f
+    );
+}
+
 // Cross product
 glm::vec4 crossproduct(glm::vec4 u, glm::vec4 v)
 {
