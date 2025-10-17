@@ -91,7 +91,6 @@ int main()
     GLint view_uniform            = glGetUniformLocation(g_GpuProgramID, "view");
     GLint projection_uniform      = glGetUniformLocation(g_GpuProgramID, "projection");
     GLint render_as_black_uniform = glGetUniformLocation(g_GpuProgramID, "render_as_black");
-    // Habilitamos o Z-buffer. Veja slides 104-116 do documento Aula_09_Projecoes.pdf.
     glEnable(GL_DEPTH_TEST);
     glm::mat4 the_projection;
     glm::mat4 the_model;
@@ -103,7 +102,7 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(g_GpuProgramID);
         glBindVertexArray(vertex_array_object_id);
-        //Declaração amtriz view
+        //Declaração matriz view
         glm::mat4 view;
         //Posição e distância da câmera
         float r = g_CameraDistance;
@@ -120,7 +119,7 @@ int main()
             view = Matrix_Camera_View(camera_position_c, camera_view_vector, camera_up_vector);
         }
 
-        //Senão ativa camêra primeria pessoas
+        //Se não ativa camêra primeria pessoas
         else{
 
         }
@@ -471,4 +470,5 @@ void ErrorCallback(int error, const char* description)
 {
     fprintf(stderr, "ERROR: GLFW: %s\n", description);
 }
+
 
