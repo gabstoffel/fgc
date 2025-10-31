@@ -1,7 +1,8 @@
-//Headers
+//Headers C
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+//Chamadas tipos de dados
 #include <map>
 #include <string>
 #include <stack>
@@ -9,16 +10,20 @@
 #include <limits>
 #include <fstream>
 #include <sstream>
+//Headers para OpenGL
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 #include <glm/gtc/type_ptr.hpp>
+//Funções auxilaires
 #include "utils.h"
 #include "matrices.h"
 // Declaração de funções utilizadas para pilha de matrizes de modelagem.
 void PushMatrix(glm::mat4 M);
 void PopMatrix(glm::mat4& M);
+//Funções lógicas
+float DiferencaAngulo(glm::vec4 v, glm::vec4 u);
 //Declaração de funções iniciais
 GLuint BuildTriangles();
 void LoadShadersFromFiles();
@@ -44,6 +49,7 @@ struct SceneObject
     GLenum       rendering_mode; // Modo de rasterização (GL_TRIANGLES, GL_TRIANGLE_STRIP, etc.)
 };
 
+// Estrutura referente a um inimigo no jogo
 struct Inimigo
 {
     float x; //Posição x do inimgo
@@ -61,7 +67,7 @@ float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.5f;   // Ângulo em relação ao eixo Y
 float g_CameraDistance = 2.0f; // Distância da câmera para a origem
 GLuint g_GpuProgramID = 0;
-//Varíavel de flag do modo de camera (true = primeira pessoas, false = look-at)
+//Varíavel de flag do modo de camera (true = primeira pessoa, false = look-at)
 bool first_person = false;
 //Váriavel do ponto da posição do jogador no plano (look-at sempre aponta para o jogador)
 glm::vec4 pos_player = glm::vec4 (0.0f,0.101f,0.0f,1.0f);
@@ -105,13 +111,14 @@ int main()
     GLint view_uniform            = glGetUniformLocation(g_GpuProgramID, "view");
     GLint projection_uniform      = glGetUniformLocation(g_GpuProgramID, "projection");
     GLint render_as_black_uniform = glGetUniformLocation(g_GpuProgramID, "render_as_black");
-    // Habilitamos o Z-buffer.pdf.
+    // Habilitamos o Z-buffer.
     glEnable(GL_DEPTH_TEST);
     glm::mat4 the_projection;
     glm::mat4 the_model;
     glm::mat4 the_view;
-    //Loop de renderização
+    //Váriavel para impedir ações controladas por tempo ocorrerem várias vezes no mesmo segundo
     int segundo_anterior=0;
+    //Loop de renderização e lógica do jogo
     while (!glfwWindowShouldClose(window))
     {
         //Captura tempo para controlar spawn de inimigos
@@ -119,19 +126,21 @@ int main()
         //Inimigo spawna a cada 5 segundos, máximo de 5 inimigos
         if(segundos%5==0 && inimigos.size()<5 && segundo_anterior!=segundos){
             Inimigo novo_inimigo;
-            //Gera um numero aleatório de -1.0 a 1.0
-            float x_aletorio =  2.0f * rand() / (static_cast <float> (RAND_MAX))-1.0;
-            float z_aletorio =  2.0f * rand() / (static_cast <float> (RAND_MAX))-1.0;
-            //Gera até se afastar suficientemente do player
+            //Gera um numero aleatório de -0.9 a 0.9
+            float x_aletorio =  1.8f * rand() / (static_cast <float> (RAND_MAX))-0.9; //Rand/RAND_MAX retorna valor entre 0.0 e 1.0, multiplicando por 1.8 vai de 0.0 a 1.8, subtraindo 0.9 vai de -0.9 a 0.9
+            float z_aletorio =  1.8f * rand() / (static_cast <float> (RAND_MAX))-0.9;
+            //Gera até se afastar suficientemente do player, considera que player e inimigos sempre estão no mesmo ponto y
             while((x_aletorio-pos_player.x)*(x_aletorio-pos_player.x)+(z_aletorio-pos_player.z)*(z_aletorio-pos_player.z)<0.1){
-                x_aletorio = 2.0f * rand() / (static_cast <float> (RAND_MAX))-1.0;
-                z_aletorio = 2.0f * rand() / (static_cast <float> (RAND_MAX))-1.0;
+                x_aletorio = 1.8f * rand() / (static_cast <float> (RAND_MAX))-0.9;
+                z_aletorio = 1.8f * rand() / (static_cast <float> (RAND_MAX))-0.9;
             }
+            //Salva informações do novo inimigo e guarda no vetor
             novo_inimigo.x = x_aletorio;
             novo_inimigo.z = z_aletorio;
             novo_inimigo.vida = 100;
             inimigos.push_back(novo_inimigo);
         }
+        //Garantia de realizar ações temporizadas apenas uma vez quando chegar seu tempo
         segundo_anterior=segundos;
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -203,7 +212,13 @@ int main()
         for(int inimigos_presentes =0; inimigos_presentes<inimigos.size(); inimigos_presentes++){
             PushMatrix(model);
             //Posição inimigo
+            glm::vec4 vetor_front = glm::vec4(0.0f,0.0f,1.0f,0.0f);
             model = model*Matrix_Translate(inimigos[inimigos_presentes].x,0.101f,inimigos[inimigos_presentes].z);
+            //Rotação inimigo
+            glm::vec4 olha_player = pos_player - glm::vec4(inimigos[inimigos_presentes].x, 0.101f, inimigos[inimigos_presentes].z, 1.0f);
+            //Verifica diferença de ângulo entre para onde o inimigo está olhando e o vetor do inimigo pro jogador
+            float diff_angulo = DiferencaAngulo(vetor_front,olha_player);
+            model = model*Matrix_Rotate_Y(diff_angulo);
             glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
             glUniform1i(render_as_black_uniform, false);
             // Desenho do cubo
@@ -213,16 +228,50 @@ int main()
                 GL_UNSIGNED_INT,
                 (void*)g_VirtualScene["cube_faces"].first_index
             );
+            glLineWidth(2.0f);
+            glDrawElements(
+                g_VirtualScene["eixo_z"].rendering_mode,
+                g_VirtualScene["eixo_z"].num_indices,
+                GL_UNSIGNED_INT,
+                (void*)g_VirtualScene["eixo_z"].first_index
+            );
             PopMatrix(model);
         }
         glfwSwapBuffers(window);
         glfwPollEvents();
-    }
+        //Movimento básico para testar rotação dos inimigos
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS){
+            pos_player.z -= 0.0001f;
+        }
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS){
+            pos_player.z += 0.0001f;
+        }
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS){
+            pos_player.x -= 0.0001f;
+        }
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS){
+            pos_player.x += 0.0001f;
+        }
+        }
     glfwTerminate();
     // Fim do programa
     return 0;
 }
 
+//Calcula a diferença de ângulo entre 2 vetores
+float DiferencaAngulo(glm::vec4 v, glm::vec4 u){
+    //Divisão por 0 dá erro, evitar
+    if(norm(v)==0||norm(u)==0){
+        return 0.0;
+    }
+    //cos(angulo) = v.u/||v||*||u|| (função para descobrir diferença de ângulos entre vetores) -> angulo = arccos(v.u/||v||*||u||)
+    float angulo = acos(dotproduct(u,v)/(norm(v)*norm(u)));
+    //Verifica qual o sinal correto do ângulo para aplicar (se u está a esquerda ou direita de v)
+    if(u.x*v.z-u.z*v.x<0){
+        angulo=-angulo;
+    }
+    return angulo;
+}
 // Função que pega a matriz M e guarda a mesma no topo da pilha
 void PushMatrix(glm::mat4 M)
 {
@@ -262,6 +311,9 @@ GLuint BuildTriangles()
          -1.0f, 0.0f, 1.0f, 1.0f,
          1.0f, 0.0f, -1.0f, 1.0f,
          -1.0f, 0.0f, -1.0f, 1.0f,
+         //Vetor Z
+         0.0f,  0.0f,  0.0f, 1.0f,
+         0.0f,  0.0f,  0.4f, 1.0f,
     };
 
     //VBO
@@ -302,6 +354,9 @@ GLuint BuildTriangles()
         0.0f, 1.0f, 0.0f, 1.0f,
         0.0f, 1.0f, 0.0f, 1.0f,
         0.0f, 1.0f, 0.0f, 1.0f,
+        //Z
+        0.0f, 0.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 1.0f,
     };
     GLuint VBO_color_coefficients_id;
     glGenBuffers(1, &VBO_color_coefficients_id);
@@ -332,6 +387,8 @@ GLuint BuildTriangles()
     //Faces Piso
         8, 9, 10,
         9, 10, 11,
+    //Z
+        12, 13
     };
     // Criação de objeto virtual
     SceneObject cube_faces;
@@ -349,6 +406,14 @@ GLuint BuildTriangles()
     piso.rendering_mode = GL_TRIANGLES;
     //Adiciona a cena
     g_VirtualScene["piso"] = piso;
+    //Z
+    SceneObject eixo_z;
+    eixo_z.name = "Z";
+    eixo_z.first_index = (void*)(42*sizeof(GLuint));
+    eixo_z.num_indices = 2;
+    eixo_z.rendering_mode = GL_LINES;
+    //Adiciona a cena
+    g_VirtualScene["eixo_z"] = eixo_z;
     // Vetor de índices
     GLuint indices_id;
     glGenBuffers(1, &indices_id);
