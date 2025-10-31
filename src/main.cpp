@@ -64,7 +64,7 @@ GLuint g_GpuProgramID = 0;
 //Varíavel de flag do modo de camera (true = primeira pessoas, false = look-at)
 bool first_person = false;
 //Váriavel do ponto da posição do jogador no plano (look-at sempre aponta para o jogador)
-glm::vec4 pos_player = glm::vec4 (0.0f,0.1f,0.0f,1.0f);
+glm::vec4 pos_player = glm::vec4 (0.0f,0.101f,0.0f,1.0f);
 // Pilha que guardará as matrizes de modelagem.
 std::stack<glm::mat4>  g_MatrixStack;
 
@@ -81,7 +81,6 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     #ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     #endif
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     GLFWwindow* window;
@@ -106,7 +105,7 @@ int main()
     GLint view_uniform            = glGetUniformLocation(g_GpuProgramID, "view");
     GLint projection_uniform      = glGetUniformLocation(g_GpuProgramID, "projection");
     GLint render_as_black_uniform = glGetUniformLocation(g_GpuProgramID, "render_as_black");
-    // Habilitamos o Z-buffer. Veja slides 104-116 do documento Aula_09_Projecoes.pdf.
+    // Habilitamos o Z-buffer.pdf.
     glEnable(GL_DEPTH_TEST);
     glm::mat4 the_projection;
     glm::mat4 the_model;
@@ -204,7 +203,7 @@ int main()
         for(int inimigos_presentes =0; inimigos_presentes<inimigos.size(); inimigos_presentes++){
             PushMatrix(model);
             //Posição inimigo
-            model = model*Matrix_Translate(inimigos[inimigos_presentes].x,0.1f,inimigos[inimigos_presentes].z);
+            model = model*Matrix_Translate(inimigos[inimigos_presentes].x,0.101f,inimigos[inimigos_presentes].z);
             glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
             glUniform1i(render_as_black_uniform, false);
             // Desenho do cubo
