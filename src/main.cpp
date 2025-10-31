@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <map>
 #include <string>
+#include <stack>
+#include <random>
 #include <limits>
 #include <fstream>
 #include <sstream>
@@ -14,6 +16,9 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "utils.h"
 #include "matrices.h"
+// Declaração de funções utilizadas para pilha de matrizes de modelagem.
+void PushMatrix(glm::mat4 M);
+void PopMatrix(glm::mat4& M);
 //Declaração de funções iniciais
 GLuint BuildTriangles();
 void LoadShadersFromFiles();
@@ -38,6 +43,13 @@ struct SceneObject
     int          num_indices; // Número de índices do objeto dentro do vetor indices[] definido em BuildTriangles()
     GLenum       rendering_mode; // Modo de rasterização (GL_TRIANGLES, GL_TRIANGLE_STRIP, etc.)
 };
+
+struct Inimigo
+{
+    float x; //Posição x do inimgo
+    float z; //Posição z do inimgo
+    int vida; //Vida atual do inimigo
+};
  //Váriávies globais
 std::map<const char*, SceneObject> g_VirtualScene;
 float g_ScreenRatio = 1.0f;
@@ -46,16 +58,19 @@ float g_AngleY = 0.0f;
 float g_AngleZ = 0.0f;
 bool g_LeftMouseButtonPressed = false;
 float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
-float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
-float g_CameraDistance = 2.5f; // Distância da câmera para a origem
+float g_CameraPhi = 0.5f;   // Ângulo em relação ao eixo Y
+float g_CameraDistance = 2.0f; // Distância da câmera para a origem
 GLuint g_GpuProgramID = 0;
 //Varíavel de flag do modo de camera (true = primeira pessoas, false = look-at)
 bool first_person = false;
 //Váriavel do ponto da posição do jogador no plano (look-at sempre aponta para o jogador)
-glm::vec4 pos_player = glm::vec4 (0.0f,0.0f,0.0f,1.0f);
+glm::vec4 pos_player = glm::vec4 (0.0f,0.1f,0.0f,1.0f);
+// Pilha que guardará as matrizes de modelagem.
+std::stack<glm::mat4>  g_MatrixStack;
 
 int main()
 {
+    std::vector<Inimigo> inimigos;
     int success = glfwInit();
     if (!success)
     {
@@ -70,7 +85,7 @@ int main()
     #endif
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     GLFWwindow* window;
-    window = glfwCreateWindow(800, 600, "Implementação Inicial - Câmera Look-at", NULL, NULL);
+    window = glfwCreateWindow(800, 600, "Implementação Inicial", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -91,18 +106,39 @@ int main()
     GLint view_uniform            = glGetUniformLocation(g_GpuProgramID, "view");
     GLint projection_uniform      = glGetUniformLocation(g_GpuProgramID, "projection");
     GLint render_as_black_uniform = glGetUniformLocation(g_GpuProgramID, "render_as_black");
+    // Habilitamos o Z-buffer. Veja slides 104-116 do documento Aula_09_Projecoes.pdf.
     glEnable(GL_DEPTH_TEST);
     glm::mat4 the_projection;
     glm::mat4 the_model;
     glm::mat4 the_view;
     //Loop de renderização
+    int segundo_anterior=0;
     while (!glfwWindowShouldClose(window))
     {
+        //Captura tempo para controlar spawn de inimigos
+        int segundos = (int)glfwGetTime();
+        //Inimigo spawna a cada 5 segundos, máximo de 5 inimigos
+        if(segundos%5==0 && inimigos.size()<5 && segundo_anterior!=segundos){
+            Inimigo novo_inimigo;
+            //Gera um numero aleatório de -1.0 a 1.0
+            float x_aletorio =  2.0f * rand() / (static_cast <float> (RAND_MAX))-1.0;
+            float z_aletorio =  2.0f * rand() / (static_cast <float> (RAND_MAX))-1.0;
+            //Gera até se afastar suficientemente do player
+            while((x_aletorio-pos_player.x)*(x_aletorio-pos_player.x)+(z_aletorio-pos_player.z)*(z_aletorio-pos_player.z)<0.1){
+                x_aletorio = 2.0f * rand() / (static_cast <float> (RAND_MAX))-1.0;
+                z_aletorio = 2.0f * rand() / (static_cast <float> (RAND_MAX))-1.0;
+            }
+            novo_inimigo.x = x_aletorio;
+            novo_inimigo.z = z_aletorio;
+            novo_inimigo.vida = 100;
+            inimigos.push_back(novo_inimigo);
+        }
+        segundo_anterior=segundos;
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(g_GpuProgramID);
         glBindVertexArray(vertex_array_object_id);
-        //Declaração matriz view
+        //Declaração amtriz view
         glm::mat4 view;
         //Posição e distância da câmera
         float r = g_CameraDistance;
@@ -119,7 +155,7 @@ int main()
             view = Matrix_Camera_View(camera_position_c, camera_view_vector, camera_up_vector);
         }
 
-        //Se não ativa camêra primeria pessoas
+        //Senão ativa camêra primeria pessoas
         else{
 
         }
@@ -139,16 +175,47 @@ int main()
         glm::mat4 model;
         // Matriz do modelo
         model = Matrix_Identity();
-        // Matriz vai para GPU
+        //Matriz vai para GPU
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(render_as_black_uniform, false);
-        // Desenho do cubo
+        //Desenho do piso
         glDrawElements(
-            g_VirtualScene["cube_faces"].rendering_mode,
-            g_VirtualScene["cube_faces"].num_indices,
+            g_VirtualScene["piso"].rendering_mode,
+            g_VirtualScene["piso"].num_indices,
             GL_UNSIGNED_INT,
-            (void*)g_VirtualScene["cube_faces"].first_index
+            (void*)g_VirtualScene["piso"].first_index
         );
+        //Cubo translado para posição do player
+        PushMatrix(model);
+            //Posição do player
+            model = model*Matrix_Translate(pos_player.x,pos_player.y,pos_player.z);
+            // Matriz vai para GPU
+            glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+            glUniform1i(render_as_black_uniform, false);
+            // Desenho do cubo
+            glDrawElements(
+                g_VirtualScene["cube_faces"].rendering_mode,
+                g_VirtualScene["cube_faces"].num_indices,
+                GL_UNSIGNED_INT,
+                (void*)g_VirtualScene["cube_faces"].first_index
+            );
+        PopMatrix(model);
+        //Desenho de inimigos se existirem
+        for(int inimigos_presentes =0; inimigos_presentes<inimigos.size(); inimigos_presentes++){
+            PushMatrix(model);
+            //Posição inimigo
+            model = model*Matrix_Translate(inimigos[inimigos_presentes].x,0.1f,inimigos[inimigos_presentes].z);
+            glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+            glUniform1i(render_as_black_uniform, false);
+            // Desenho do cubo
+            glDrawElements(
+                g_VirtualScene["cube_faces"].rendering_mode,
+                g_VirtualScene["cube_faces"].num_indices,
+                GL_UNSIGNED_INT,
+                (void*)g_VirtualScene["cube_faces"].first_index
+            );
+            PopMatrix(model);
+        }
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -157,19 +224,45 @@ int main()
     return 0;
 }
 
+// Função que pega a matriz M e guarda a mesma no topo da pilha
+void PushMatrix(glm::mat4 M)
+{
+    g_MatrixStack.push(M);
+}
+
+// Função que remove a matriz atualmente no topo da pilha e armazena a mesma na variável M
+void PopMatrix(glm::mat4& M)
+{
+    if ( g_MatrixStack.empty() )
+    {
+        M = Matrix_Identity();
+    }
+    else
+    {
+        M = g_MatrixStack.top();
+        g_MatrixStack.pop();
+    }
+}
+
 //Construção de triângulos
 GLuint BuildTriangles()
 {
     //Gemoetria
     GLfloat model_coefficients[] = {
-        -0.5f,  0.5f,  0.5f, 1.0f,
-        -0.5f, -0.5f,  0.5f, 1.0f,
-         0.5f, -0.5f,  0.5f, 1.0f,
-         0.5f,  0.5f,  0.5f, 1.0f,
-        -0.5f,  0.5f, -0.5f, 1.0f,
-        -0.5f, -0.5f, -0.5f, 1.0f,
-         0.5f, -0.5f, -0.5f, 1.0f,
-         0.5f,  0.5f, -0.5f, 1.0f,
+        //Cubo
+        -0.1f,  0.1f,  0.1f, 1.0f,
+        -0.1f, -0.1f,  0.1f, 1.0f,
+         0.1f, -0.1f,  0.1f, 1.0f,
+         0.1f,  0.1f,  0.1f, 1.0f,
+        -0.1f,  0.1f, -0.1f, 1.0f,
+        -0.1f, -0.1f, -0.1f, 1.0f,
+         0.1f, -0.1f, -0.1f, 1.0f,
+         0.1f,  0.1f, -0.1f, 1.0f,
+         //Piso
+         1.0f, 0.0f, 1.0f, 1.0f,
+         -1.0f, 0.0f, 1.0f, 1.0f,
+         1.0f, 0.0f, -1.0f, 1.0f,
+         -1.0f, 0.0f, -1.0f, 1.0f,
     };
 
     //VBO
@@ -196,6 +289,7 @@ GLuint BuildTriangles()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     //Cor dos vértices
     GLfloat color_coefficients[] = {
+        //Cubo
         1.0f, 0.5f, 0.0f, 1.0f,
         1.0f, 0.5f, 0.0f, 1.0f,
         0.0f, 0.5f, 1.0f, 1.0f,
@@ -204,6 +298,11 @@ GLuint BuildTriangles()
         1.0f, 0.5f, 0.0f, 1.0f,
         0.0f, 0.5f, 1.0f, 1.0f,
         0.0f, 0.5f, 1.0f, 1.0f,
+        //Piso
+        0.0f, 1.0f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,
     };
     GLuint VBO_color_coefficients_id;
     glGenBuffers(1, &VBO_color_coefficients_id);
@@ -231,6 +330,9 @@ GLuint BuildTriangles()
         4, 3, 7,
         4, 1, 0,
         1, 6, 2,
+    //Faces Piso
+        8, 9, 10,
+        9, 10, 11,
     };
     // Criação de objeto virtual
     SceneObject cube_faces;
@@ -240,6 +342,14 @@ GLuint BuildTriangles()
     cube_faces.rendering_mode = GL_TRIANGLES;
     // Adiciona a cena
     g_VirtualScene["cube_faces"] = cube_faces;
+    //Piso
+    SceneObject piso;
+    piso.name = "Piso";
+    piso.first_index = (void*)(36*sizeof(GLuint));
+    piso.num_indices = 6;
+    piso.rendering_mode = GL_TRIANGLES;
+    //Adiciona a cena
+    g_VirtualScene["piso"] = piso;
     // Vetor de índices
     GLuint indices_id;
     glGenBuffers(1, &indices_id);
@@ -437,8 +547,8 @@ void ScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
     g_CameraDistance -= 0.1f*yoffset;
 
     // Restrição de zoom máximo e zoom mínimo
-    float zoom_min=2;
-    float zoom_max=5;
+    float zoom_min=0.4;
+    float zoom_max=2;
     if (g_CameraDistance < zoom_min){
         g_CameraDistance = zoom_min;
     }
@@ -470,5 +580,4 @@ void ErrorCallback(int error, const char* description)
 {
     fprintf(stderr, "ERROR: GLFW: %s\n", description);
 }
-
 
