@@ -1,16 +1,12 @@
-@echo off
-echo Building OpenGL Template...
-
-REM Create build directory
-if not exist build mkdir build
+mkdir build
 cd build
+cmake .. -G "MinGW Makefiles"
+mingw32-make
+# Navega até a pasta do executável
+cd C:\FCG\TrabalhoFinal\bin\Debug
 
-REM Configure with CMake
-cmake .. -G "Visual Studio 17 2022" -A x64
-
-REM Build the project
-cmake --build . --config Release
-
-echo Build complete!
-echo Run the executable from the build/Release/ directory
-pause
+# Executa o programa
+.\main.exe
+cd C:\FCG\TrabalhoFinal\bin\Debug
+  
+cd ..\..\   

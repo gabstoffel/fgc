@@ -12,6 +12,12 @@
 /cmake_install.cmake
 /Makefile
 /Testing/
+
+/include/glad
+/include/glm
+/include/KHR
+/include/GLFW
+
 CTestTestfile.cmake
 compile_commands.json
 
