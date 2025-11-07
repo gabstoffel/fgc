@@ -3,30 +3,91 @@
 #include <cstdio>
 #include <cstdlib>
 //Chamadas tipos de dados
+#include <set>
 #include <map>
-#include <string>
 #include <stack>
-#include <random>
+#include <string>
+#include <vector>
 #include <limits>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
+#include <algorithm>
 //Headers para OpenGL
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 #include <glm/gtc/type_ptr.hpp>
+// Headers da biblioteca para carregar modelos obj
+#include <tiny_obj_loader.h>
 //Funções auxilaires
 #include "utils.h"
 #include "matrices.h"
+// Estrutura que representa um modelo geométrico carregado a partir de um .obj
+struct ObjModel
+{
+    tinyobj::attrib_t                 attrib;
+    std::vector<tinyobj::shape_t>     shapes;
+    std::vector<tinyobj::material_t>  materials;
+
+    // Este construtor lê o modelo de um arquivo utilizando a biblioteca tinyobjloader.
+    // Veja: https://github.com/syoyo/tinyobjloader
+    ObjModel(const char* filename, const char* basepath = NULL, bool triangulate = true)
+    {
+        printf("Carregando objetos do arquivo \"%s\"...\n", filename);
+
+        // Achar caminho correto caso basepath=NULL
+        std::string fullpath(filename);
+        std::string dirname;
+        if (basepath == NULL)
+        {
+            auto i = fullpath.find_last_of("/");
+            if (i != std::string::npos)
+            {
+                dirname = fullpath.substr(0, i+1);
+                basepath = dirname.c_str();
+            }
+        }
+        //Carrega objeto
+        std::string warn;
+        std::string err;
+        bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename, basepath, triangulate);
+
+        if (!err.empty())
+            fprintf(stderr, "\n%s\n", err.c_str());
+
+        if (!ret)
+            throw std::runtime_error("Erro ao carregar modelo.");
+
+        for (size_t shape = 0; shape < shapes.size(); ++shape)
+        {
+            //Objeto sem nome
+            if (shapes[shape].name.empty())
+            {
+                fprintf(stderr,
+                        "*********************************************\n"
+                        "Erro: Objeto sem nome dentro do arquivo '%s'.\n"
+                        "Veja https://www.inf.ufrgs.br/~eslgastal/fcg-faq-etc.html#Modelos-3D-no-formato-OBJ .\n"
+                        "*********************************************\n",
+                    filename);
+                throw std::runtime_error("Objeto sem nome.");
+            }
+            printf("- Objeto '%s'\n", shapes[shape].name.c_str());
+        }
+        printf("OK.\n");
+    }
+};
 // Declaração de funções utilizadas para pilha de matrizes de modelagem.
 void PushMatrix(glm::mat4 M);
 void PopMatrix(glm::mat4& M);
 //Funções lógicas
 float DiferencaAngulo(glm::vec4 v, glm::vec4 u);
 //Declaração de funções iniciais
-GLuint BuildTriangles();
+void BuildTriangles(ObjModel*);
+void ComputeNormals(ObjModel* model);
 void LoadShadersFromFiles();
+void DrawVirtualObject(const char* object_name);
 GLuint LoadShader_Vertex(const char* filename);
 GLuint LoadShader_Fragment(const char* filename);
 void LoadShader(const char* filename, GLuint shader_id);
@@ -39,14 +100,15 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
 void ScrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 
-// Definimos uma estrutura que armazenará dados necessários para renderizar
-// cada objeto da cena virtual.
+
+// Definimos uma estrutura que armazenará dados necessários para renderizar cada objeto da cena virtual.
 struct SceneObject
 {
-    const char*  name;        // Nome do objeto
-    void*        first_index; // Índice do primeiro vértice dentro do vetor indices[] definido em BuildTriangles()
-    int          num_indices; // Número de índices do objeto dentro do vetor indices[] definido em BuildTriangles()
+    std::string  name;        // Nome do objeto
+    size_t        first_index; // Índice do primeiro vértice dentro do vetor indices[] definido em BuildTriangles()
+    size_t          num_indices; // Número de índices do objeto dentro do vetor indices[] definido em BuildTriangles()
     GLenum       rendering_mode; // Modo de rasterização (GL_TRIANGLES, GL_TRIANGLE_STRIP, etc.)
+    GLuint       vertex_array_object_id; // ID do VAO onde estão armazenados os atributos do modelo
 };
 
 // Estrutura referente a um inimigo no jogo
@@ -57,11 +119,8 @@ struct Inimigo
     int vida; //Vida atual do inimigo
 };
  //Váriávies globais
-std::map<const char*, SceneObject> g_VirtualScene;
+std::map<std::string, SceneObject> g_VirtualScene;
 float g_ScreenRatio = 1.0f;
-float g_AngleX = 0.0f;
-float g_AngleY = 0.0f;
-float g_AngleZ = 0.0f;
 bool g_LeftMouseButtonPressed = false;
 float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.5f;   // Ângulo em relação ao eixo Y
@@ -73,8 +132,12 @@ bool first_person = false;
 glm::vec4 pos_player = glm::vec4 (0.0f,0.101f,0.0f,1.0f);
 // Pilha que guardará as matrizes de modelagem.
 std::stack<glm::mat4>  g_MatrixStack;
-
-int main()
+// Variáveis que definem um programa de GPU (shaders)
+GLint model_uniform;
+GLint view_uniform;
+GLint projection_uniform;
+GLint object_id_uniform;
+int main(int argc, char* argv[])
 {
     std::vector<Inimigo> inimigos;
     int success = glfwInit();
@@ -106,18 +169,33 @@ int main()
     glfwMakeContextCurrent(window);
     gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
     LoadShadersFromFiles();
-    GLuint vertex_array_object_id = BuildTriangles();
-    GLint model_uniform           = glGetUniformLocation(g_GpuProgramID, "model");
-    GLint view_uniform            = glGetUniformLocation(g_GpuProgramID, "view");
-    GLint projection_uniform      = glGetUniformLocation(g_GpuProgramID, "projection");
-    GLint render_as_black_uniform = glGetUniformLocation(g_GpuProgramID, "render_as_black");
+    //Carrega modelos .obj e sontrói em malhas de triângulos
+    ObjModel monstermodel("../../modelos/monstro.obj");
+    ComputeNormals(&monstermodel);
+    BuildTriangles(&monstermodel);
+    ObjModel cubemodel("../../modelos/cube.obj");
+    ComputeNormals(&cubemodel);
+    BuildTriangles(&cubemodel);
+    ObjModel planemodel("../../modelos/plane.obj");
+    ComputeNormals(&planemodel);
+    BuildTriangles(&planemodel);
+    if ( argc > 1 )
+    {
+        ObjModel model(argv[1]);
+        BuildTriangles(&model);
+    }
+
     // Habilitamos o Z-buffer.
     glEnable(GL_DEPTH_TEST);
+    //Backface culling
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
     glm::mat4 the_projection;
     glm::mat4 the_model;
     glm::mat4 the_view;
     //Váriavel para impedir ações controladas por tempo ocorrerem várias vezes no mesmo segundo
-    int segundo_anterior=0;
+    int segundo_anterior=(int)glfwGetTime();
     //Loop de renderização e lógica do jogo
     while (!glfwWindowShouldClose(window))
     {
@@ -145,7 +223,6 @@ int main()
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(g_GpuProgramID);
-        glBindVertexArray(vertex_array_object_id);
         //Declaração amtriz view
         glm::mat4 view;
         //Posição e distância da câmera
@@ -179,62 +256,43 @@ int main()
         // Matrizes vão para GPU
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
+        #define MONSTRO 0
+        #define CUBE 1
+        #define PLANO 2
         // Desenho de coubo para teste de câmera
         glm::mat4 model;
         // Matriz do modelo
         model = Matrix_Identity();
         //Matriz vai para GPU
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform1i(render_as_black_uniform, false);
+        glUniform1i(object_id_uniform, 2);
         //Desenho do piso
-        glDrawElements(
-            g_VirtualScene["piso"].rendering_mode,
-            g_VirtualScene["piso"].num_indices,
-            GL_UNSIGNED_INT,
-            (void*)g_VirtualScene["piso"].first_index
-        );
+        DrawVirtualObject("the_plane");
         //Cubo translado para posição do player
         PushMatrix(model);
             //Posição do player
-            model = model*Matrix_Translate(pos_player.x,pos_player.y,pos_player.z);
+            model = model*Matrix_Translate(pos_player.x,pos_player.y,pos_player.z)*Matrix_Scale(0.1f,0.1f,0.1f);
             // Matriz vai para GPU
             glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-            glUniform1i(render_as_black_uniform, false);
+            glUniform1i(object_id_uniform, 1);
             // Desenho do cubo
-            glDrawElements(
-                g_VirtualScene["cube_faces"].rendering_mode,
-                g_VirtualScene["cube_faces"].num_indices,
-                GL_UNSIGNED_INT,
-                (void*)g_VirtualScene["cube_faces"].first_index
-            );
+            DrawVirtualObject("the_cube");
         PopMatrix(model);
         //Desenho de inimigos se existirem
         for(int inimigos_presentes =0; inimigos_presentes<inimigos.size(); inimigos_presentes++){
             PushMatrix(model);
             //Posição inimigo
             glm::vec4 vetor_front = glm::vec4(0.0f,0.0f,1.0f,0.0f);
-            model = model*Matrix_Translate(inimigos[inimigos_presentes].x,0.101f,inimigos[inimigos_presentes].z);
+            model = model*Matrix_Translate(inimigos[inimigos_presentes].x,0.101f,inimigos[inimigos_presentes].z)*Matrix_Scale(0.15f,0.15f,0.15f);
             //Rotação inimigo
             glm::vec4 olha_player = pos_player - glm::vec4(inimigos[inimigos_presentes].x, 0.101f, inimigos[inimigos_presentes].z, 1.0f);
             //Verifica diferença de ângulo entre para onde o inimigo está olhando e o vetor do inimigo pro jogador
             float diff_angulo = DiferencaAngulo(vetor_front,olha_player);
             model = model*Matrix_Rotate_Y(diff_angulo);
             glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-            glUniform1i(render_as_black_uniform, false);
+            glUniform1i(object_id_uniform, 0);
             // Desenho do cubo
-            glDrawElements(
-                g_VirtualScene["cube_faces"].rendering_mode,
-                g_VirtualScene["cube_faces"].num_indices,
-                GL_UNSIGNED_INT,
-                (void*)g_VirtualScene["cube_faces"].first_index
-            );
-            glLineWidth(2.0f);
-            glDrawElements(
-                g_VirtualScene["eixo_z"].rendering_mode,
-                g_VirtualScene["eixo_z"].num_indices,
-                GL_UNSIGNED_INT,
-                (void*)g_VirtualScene["eixo_z"].first_index
-            );
+            DrawVirtualObject("turle");
             PopMatrix(model);
         }
         glfwSwapBuffers(window);
@@ -272,6 +330,128 @@ float DiferencaAngulo(glm::vec4 v, glm::vec4 u){
     }
     return angulo;
 }
+
+// Função que desenha um objeto armazenado em g_VirtualScene
+void DrawVirtualObject(const char* object_name)
+{
+    // "Ligamos" o VAO
+    glBindVertexArray(g_VirtualScene[object_name].vertex_array_object_id);
+
+    // Pedimos para a GPU rasterizar os vértices dos eixos XYZ apontados pelo VAO como linhas
+    glDrawElements(
+        g_VirtualScene[object_name].rendering_mode,
+        g_VirtualScene[object_name].num_indices,
+        GL_UNSIGNED_INT,
+        (void*)(g_VirtualScene[object_name].first_index * sizeof(GLuint))
+    );
+
+    // "Desligamos" o VAO
+    glBindVertexArray(0);
+}
+
+// Função que computa as normais de um ObjModel
+void ComputeNormals(ObjModel* model)
+{
+    if ( !model->attrib.normals.empty() )
+        return;
+
+    // Primeiro computamos as normais para todos os TRIÂNGULOS.
+    // Segundo, computamos as normais dos VÉRTICES através do método proposto
+    // por Gouraud, onde a normal de cada vértice vai ser a média das normais de
+    // todas as faces que compartilham este vértice e que pertencem ao mesmo "smoothing group".
+    // Obtemos a lista dos smoothing groups que existem no objeto
+    std::set<unsigned int> sgroup_ids;
+    for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+    {
+        size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+
+        assert(model->shapes[shape].mesh.smoothing_group_ids.size() == num_triangles);
+
+        for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+        {
+            assert(model->shapes[shape].mesh.num_face_vertices[triangle] == 3);
+            unsigned int sgroup = model->shapes[shape].mesh.smoothing_group_ids[triangle];
+            assert(sgroup >= 0);
+            sgroup_ids.insert(sgroup);
+        }
+    }
+    size_t num_vertices = model->attrib.vertices.size() / 3;
+    model->attrib.normals.reserve( 3*num_vertices );
+    // Processamos um smoothing group por vez
+    for (const unsigned int & sgroup : sgroup_ids)
+    {
+        std::vector<int> num_triangles_per_vertex(num_vertices, 0);
+        std::vector<glm::vec4> vertex_normals(num_vertices, glm::vec4(0.0f,0.0f,0.0f,0.0f));
+        // Acumulamos as normais dos vértices de todos triângulos deste smoothing group
+        for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+        {
+            size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+            for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+            {
+                unsigned int sgroup_tri = model->shapes[shape].mesh.smoothing_group_ids[triangle];
+                if (sgroup_tri != sgroup)
+                    continue;
+                glm::vec4  vertices[3];
+                for (size_t vertex = 0; vertex < 3; ++vertex)
+                {
+                    tinyobj::index_t idx = model->shapes[shape].mesh.indices[3*triangle + vertex];
+                    const float vx = model->attrib.vertices[3*idx.vertex_index + 0];
+                    const float vy = model->attrib.vertices[3*idx.vertex_index + 1];
+                    const float vz = model->attrib.vertices[3*idx.vertex_index + 2];
+                    vertices[vertex] = glm::vec4(vx,vy,vz,1.0);
+                }
+                const glm::vec4  a = vertices[0];
+                const glm::vec4  b = vertices[1];
+                const glm::vec4  c = vertices[2];
+                //Cria vetor u = b-a e v = c-a
+                glm::vec4 u = glm::vec4(b - a);
+                glm::vec4 v = glm::vec4(c - a);
+                //Produto vetorial
+                const glm::vec4  n = crossproduct(u,v);
+                for (size_t vertex = 0; vertex < 3; ++vertex)
+                {
+                    tinyobj::index_t idx = model->shapes[shape].mesh.indices[3*triangle + vertex];
+                    num_triangles_per_vertex[idx.vertex_index] += 1;
+                    vertex_normals[idx.vertex_index] += n;
+                }
+            }
+        }
+        // Computamos a média das normais acumuladas
+        std::vector<size_t> normal_indices(num_vertices, 0);
+        for (size_t vertex_index = 0; vertex_index < vertex_normals.size(); ++vertex_index)
+        {
+            if (num_triangles_per_vertex[vertex_index] == 0)
+                continue;
+            glm::vec4 n = vertex_normals[vertex_index] / (float)num_triangles_per_vertex[vertex_index];
+            n /= norm(n);
+            model->attrib.normals.push_back( n.x );
+            model->attrib.normals.push_back( n.y );
+            model->attrib.normals.push_back( n.z );
+
+            size_t normal_index = (model->attrib.normals.size() / 3) - 1;
+            normal_indices[vertex_index] = normal_index;
+        }
+        // Escrevemos os índices das normais para os vértices dos triângulos deste smoothing group
+        for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+        {
+            size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+            for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+            {
+                unsigned int sgroup_tri = model->shapes[shape].mesh.smoothing_group_ids[triangle];
+                if (sgroup_tri != sgroup)
+                    continue;
+                for (size_t vertex = 0; vertex < 3; ++vertex)
+                {
+                    tinyobj::index_t idx = model->shapes[shape].mesh.indices[3*triangle + vertex];
+                    model->shapes[shape].mesh.indices[3*triangle + vertex].normal_index =
+                        normal_indices[ idx.vertex_index ];
+                }
+            }
+        }
+
+    }
+}
+
 // Função que pega a matriz M e guarda a mesma no topo da pilha
 void PushMatrix(glm::mat4 M)
 {
@@ -293,140 +473,116 @@ void PopMatrix(glm::mat4& M)
 }
 
 //Construção de triângulos
-GLuint BuildTriangles()
+void BuildTriangles(ObjModel* model)
 {
-    //Gemoetria
-    GLfloat model_coefficients[] = {
-        //Cubo
-        -0.1f,  0.1f,  0.1f, 1.0f,
-        -0.1f, -0.1f,  0.1f, 1.0f,
-         0.1f, -0.1f,  0.1f, 1.0f,
-         0.1f,  0.1f,  0.1f, 1.0f,
-        -0.1f,  0.1f, -0.1f, 1.0f,
-        -0.1f, -0.1f, -0.1f, 1.0f,
-         0.1f, -0.1f, -0.1f, 1.0f,
-         0.1f,  0.1f, -0.1f, 1.0f,
-         //Piso
-         1.0f, 0.0f, 1.0f, 1.0f,
-         -1.0f, 0.0f, 1.0f, 1.0f,
-         1.0f, 0.0f, -1.0f, 1.0f,
-         -1.0f, 0.0f, -1.0f, 1.0f,
-         //Vetor Z
-         0.0f,  0.0f,  0.0f, 1.0f,
-         0.0f,  0.0f,  0.4f, 1.0f,
-    };
-
-    //VBO
-    GLuint VBO_model_coefficients_id;
-    glGenBuffers(1, &VBO_model_coefficients_id);
-    //VAO
     GLuint vertex_array_object_id;
     glGenVertexArrays(1, &vertex_array_object_id);
-    //VAO ligado
     glBindVertexArray(vertex_array_object_id);
-    //VBO ligado
+    std::vector<GLuint> indices;
+    std::vector<float>  model_coefficients;
+    std::vector<float>  normal_coefficients;
+    std::vector<float>  texture_coefficients;
+    for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+    {
+        size_t first_index = indices.size();
+        size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+        for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+        {
+            assert(model->shapes[shape].mesh.num_face_vertices[triangle] == 3);
+            for (size_t vertex = 0; vertex < 3; ++vertex)
+            {
+                tinyobj::index_t idx = model->shapes[shape].mesh.indices[3*triangle + vertex];
+                indices.push_back(first_index + 3*triangle + vertex);
+                const float vx = model->attrib.vertices[3*idx.vertex_index + 0];
+                const float vy = model->attrib.vertices[3*idx.vertex_index + 1];
+                const float vz = model->attrib.vertices[3*idx.vertex_index + 2];
+                //printf("tri %d vert %d = (%.2f, %.2f, %.2f)\n", (int)triangle, (int)vertex, vx, vy, vz);
+                model_coefficients.push_back( vx ); // X
+                model_coefficients.push_back( vy ); // Y
+                model_coefficients.push_back( vz ); // Z
+                model_coefficients.push_back( 1.0f ); // W
+                // Inspecionando o código da tinyobjloader, o aluno Bernardo
+                // Sulzbach (2017/1) apontou que a maneira correta de testar se
+                // existem normais e coordenadas de textura no ObjModel é
+                // comparando se o índice retornado é -1. Fazemos isso abaixo.
+                if ( idx.normal_index != -1 )
+                {
+                    const float nx = model->attrib.normals[3*idx.normal_index + 0];
+                    const float ny = model->attrib.normals[3*idx.normal_index + 1];
+                    const float nz = model->attrib.normals[3*idx.normal_index + 2];
+                    normal_coefficients.push_back( nx ); // X
+                    normal_coefficients.push_back( ny ); // Y
+                    normal_coefficients.push_back( nz ); // Z
+                    normal_coefficients.push_back( 0.0f ); // W
+                }
+                if ( idx.texcoord_index != -1 )
+                {
+                    const float u = model->attrib.texcoords[2*idx.texcoord_index + 0];
+                    const float v = model->attrib.texcoords[2*idx.texcoord_index + 1];
+                    texture_coefficients.push_back( u );
+                    texture_coefficients.push_back( v );
+                }
+            }
+        }
+        size_t last_index = indices.size() - 1;
+        SceneObject theobject;
+        theobject.name           = model->shapes[shape].name;
+        theobject.first_index    = first_index; // Primeiro índice
+        theobject.num_indices    = last_index - first_index + 1; // Número de indices
+        theobject.rendering_mode = GL_TRIANGLES;       // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
+        theobject.vertex_array_object_id = vertex_array_object_id;
+        g_VirtualScene[model->shapes[shape].name] = theobject;
+    }
+
+    GLuint VBO_model_coefficients_id;
+    glGenBuffers(1, &VBO_model_coefficients_id);
     glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
-    //Aloca memória
-    glBufferData(GL_ARRAY_BUFFER, sizeof(model_coefficients), NULL, GL_STATIC_DRAW);
-    //Copia para o VBO
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(model_coefficients), model_coefficients);
-    //Localização
-    GLuint location = 0;
-    GLint  number_of_dimensions = 4;
-    glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
-    //Ativa atributos
-    glEnableVertexAttribArray(location);
-    // Desliga VBO
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    //Cor dos vértices
-    GLfloat color_coefficients[] = {
-        //Cubo
-        1.0f, 0.5f, 0.0f, 1.0f,
-        1.0f, 0.5f, 0.0f, 1.0f,
-        0.0f, 0.5f, 1.0f, 1.0f,
-        0.0f, 0.5f, 1.0f, 1.0f,
-        1.0f, 0.5f, 0.0f, 1.0f,
-        1.0f, 0.5f, 0.0f, 1.0f,
-        0.0f, 0.5f, 1.0f, 1.0f,
-        0.0f, 0.5f, 1.0f, 1.0f,
-        //Piso
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        //Z
-        0.0f, 0.0f, 1.0f, 1.0f,
-        0.0f, 0.0f, 1.0f, 1.0f,
-    };
-    GLuint VBO_color_coefficients_id;
-    glGenBuffers(1, &VBO_color_coefficients_id);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_color_coefficients_id);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(color_coefficients), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(color_coefficients), color_coefficients);
-    location = 1;
-    number_of_dimensions = 4;
+    glBufferData(GL_ARRAY_BUFFER, model_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, model_coefficients.size() * sizeof(float), model_coefficients.data());
+    GLuint location = 0; // "(location = 0)" em "shader_vertex.glsl"
+    GLint  number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
     glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(location);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    // Definição polígonos
-    GLuint indices[] = {
-    //Faces Cubo
-        0, 1, 2,
-        7, 6, 5,
-        3, 2, 6,
-        4, 0, 3,
-        4, 5, 1,
-        1, 5, 6,
-        0, 2, 3,
-        7, 5, 4,
-        3, 6, 7,
-        4, 3, 7,
-        4, 1, 0,
-        1, 6, 2,
-    //Faces Piso
-        8, 9, 10,
-        9, 10, 11,
-    //Z
-        12, 13
-    };
-    // Criação de objeto virtual
-    SceneObject cube_faces;
-    cube_faces.name           = "Cubo (faces coloridas)";
-    cube_faces.first_index    = (void*)0;
-    cube_faces.num_indices    = 36;
-    cube_faces.rendering_mode = GL_TRIANGLES;
-    // Adiciona a cena
-    g_VirtualScene["cube_faces"] = cube_faces;
-    //Piso
-    SceneObject piso;
-    piso.name = "Piso";
-    piso.first_index = (void*)(36*sizeof(GLuint));
-    piso.num_indices = 6;
-    piso.rendering_mode = GL_TRIANGLES;
-    //Adiciona a cena
-    g_VirtualScene["piso"] = piso;
-    //Z
-    SceneObject eixo_z;
-    eixo_z.name = "Z";
-    eixo_z.first_index = (void*)(42*sizeof(GLuint));
-    eixo_z.num_indices = 2;
-    eixo_z.rendering_mode = GL_LINES;
-    //Adiciona a cena
-    g_VirtualScene["eixo_z"] = eixo_z;
-    // Vetor de índices
+    if ( !normal_coefficients.empty() )
+    {
+        GLuint VBO_normal_coefficients_id;
+        glGenBuffers(1, &VBO_normal_coefficients_id);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_normal_coefficients_id);
+        glBufferData(GL_ARRAY_BUFFER, normal_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, normal_coefficients.size() * sizeof(float), normal_coefficients.data());
+        location = 1; // "(location = 1)" em "shader_vertex.glsl"
+        number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
+        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(location);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    if ( !texture_coefficients.empty() )
+    {
+        GLuint VBO_texture_coefficients_id;
+        glGenBuffers(1, &VBO_texture_coefficients_id);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_texture_coefficients_id);
+        glBufferData(GL_ARRAY_BUFFER, texture_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, texture_coefficients.size() * sizeof(float), texture_coefficients.data());
+        location = 2; // "(location = 1)" em "shader_vertex.glsl"
+        number_of_dimensions = 2; // vec2 em "shader_vertex.glsl"
+        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(location);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
     GLuint indices_id;
     glGenBuffers(1, &indices_id);
-    // Liga o buffer
+
+    // "Ligamos" o buffer. Note que o tipo agora é GL_ELEMENT_ARRAY_BUFFER.
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
-    // Aloca memória
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), NULL, GL_STATIC_DRAW);
-    // Copia para o buffer
-    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
-    //Desliga VAO
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), NULL, GL_STATIC_DRAW);
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof(GLuint), indices.data());
+    // "Desligamos" o VAO, evitando assim que operações posteriores venham a
+    // alterar o mesmo. Isso evita bugs.
     glBindVertexArray(0);
-    // Retorna ID do VAO
-    return vertex_array_object_id;
 }
 
 // Carrega Vertex Shader
@@ -519,6 +675,10 @@ void LoadShadersFromFiles()
         glDeleteProgram(g_GpuProgramID);
     // Criamos programa com shaders achados
     g_GpuProgramID = CreateGpuProgram(vertex_shader_id, fragment_shader_id);
+    model_uniform      = glGetUniformLocation(g_GpuProgramID, "model"); // Variável da matriz "model"
+    view_uniform       = glGetUniformLocation(g_GpuProgramID, "view"); // Variável da matriz "view" em shader_vertex.glsl
+    projection_uniform = glGetUniformLocation(g_GpuProgramID, "projection"); // Variável da matriz "projection" em shader_vertex.glsl
+    object_id_uniform  = glGetUniformLocation(g_GpuProgramID, "object_id"); // Variável "object_id" em shader_fragment.glsl
 }
 
 // Cria programa com shader
