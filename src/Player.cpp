@@ -1,5 +1,6 @@
 #include "Player.h"
 #include "matrices.h"
+#include "Logger.h"
 #include <cmath>
 
 Player::Player()
@@ -22,6 +23,9 @@ Player::~Player()
 
 void Player::update(GLFWwindow* window, float deltaTime)
 {
+    static int frame_count = 0;
+    bool should_log = (frame_count++ % 60 == 0);
+
     if (m_firstPerson)
     {
         glm::vec4 camera_front_xz = glm::vec4(sin(m_cameraYaw), 0.0f, cos(m_cameraYaw), 0.0f);
@@ -31,7 +35,10 @@ void Player::update(GLFWwindow* window, float deltaTime)
         camera_right_xz = camera_right_xz / norm(camera_right_xz);
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        {
             m_position += camera_front_xz * m_movementSpeed;
+            if (should_log) printf("[FP Movement] W pressed, pos: (%.2f, %.2f, %.2f)\n", m_position.x, m_position.y, m_position.z);
+        }
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
             m_position -= camera_front_xz * m_movementSpeed;
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
@@ -50,10 +57,17 @@ void Player::update(GLFWwindow* window, float deltaTime)
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
             m_position.x += m_movementSpeed;
     }
+
+    if (should_log)
+        printf("[Player] Pos: (%.2f,%.2f,%.2f) Yaw:%.2f Pitch:%.2f FP:%d\n",
+               m_position.x, m_position.y, m_position.z, m_cameraYaw, m_cameraPitch, m_firstPerson);
 }
 
 glm::mat4 Player::getCameraView() const
 {
+    static int view_log_count = 0;
+    bool should_log = (view_log_count++ % 60 == 0);
+
     if (!m_firstPerson)
     {
         float r = m_cameraDistance;
@@ -80,17 +94,32 @@ glm::mat4 Player::getCameraView() const
 
         glm::vec4 camera_up_vector = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
 
+        if (should_log)
+            Logger::logEvent("Player.getCameraView.firstPerson",
+                "{\"yaw\":%.2f,\"pitch\":%.2f,\"viewDir\":{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f},\"camPos\":{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f}}",
+                m_cameraYaw, m_cameraPitch,
+                camera_view_x, camera_view_y, camera_view_z,
+                camera_position_c.x, camera_position_c.y, camera_position_c.z);
+
         return Matrix_Camera_View(camera_position_c, camera_view_vector, camera_up_vector);
     }
 }
 
 void Player::toggleCamera()
 {
+    bool was_fp = m_firstPerson;
     m_firstPerson = !m_firstPerson;
+    Logger::logEvent("Player.toggleCamera",
+        "{\"wasFirstPerson\":%s,\"nowFirstPerson\":%s}",
+        was_fp ? "true" : "false",
+        m_firstPerson ? "true" : "false");
 }
 
 void Player::handleMouseMove(float dx, float dy)
 {
+    static int log_counter = 0;
+    bool should_log = (log_counter++ % 30 == 0 && (dx != 0 || dy != 0));
+
     if (!m_firstPerson)
     {
         m_cameraTheta -= 0.01f * dx;
@@ -102,10 +131,17 @@ void Player::handleMouseMove(float dx, float dy)
             m_cameraPhi = phimax;
         if (m_cameraPhi < phimin)
             m_cameraPhi = phimin;
+
+        if (should_log)
+            Logger::logEvent("Player.handleMouseMove.thirdPerson",
+                "{\"dx\":%.1f,\"dy\":%.1f,\"theta\":%.2f,\"phi\":%.2f}",
+                dx, dy, m_cameraTheta, m_cameraPhi);
     }
     else
     {
         float sensitivity = 0.003f;
+        float old_yaw = m_cameraYaw;
+        float old_pitch = m_cameraPitch;
 
         m_cameraYaw   -= sensitivity * dx;
         m_cameraPitch += sensitivity * dy;
@@ -116,6 +152,11 @@ void Player::handleMouseMove(float dx, float dy)
             m_cameraPitch = pitchmax;
         if (m_cameraPitch < pitchmin)
             m_cameraPitch = pitchmin;
+
+        if (should_log)
+            Logger::logEvent("Player.handleMouseMove.firstPerson",
+                "{\"dx\":%.1f,\"dy\":%.1f,\"oldYaw\":%.2f,\"oldPitch\":%.2f,\"newYaw\":%.2f,\"newPitch\":%.2f}",
+                dx, dy, old_yaw, old_pitch, m_cameraYaw, m_cameraPitch);
     }
 }
 
@@ -173,6 +214,6 @@ glm::vec4 Player::getCameraPosition() const
         float y = r * sin(m_cameraPhi);
         float z = r * cos(m_cameraPhi) * cos(m_cameraTheta);
         float x = r * cos(m_cameraPhi) * sin(m_cameraTheta);
-        return glm::vec4(x, y, z, 1.0f);
+        return m_position + glm::vec4(x, y, z, 0.0f);
     }
 }

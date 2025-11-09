@@ -2,17 +2,32 @@
 #define RENDERER_H
 
 #include <map>
+#include <set>
+#include <vector>
+#include <string>
+#include <stdexcept>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
+#include <tiny_obj_loader.h>
+
+struct ObjModel
+{
+    tinyobj::attrib_t                 attrib;
+    std::vector<tinyobj::shape_t>     shapes;
+    std::vector<tinyobj::material_t>  materials;
+
+    ObjModel(const char* filename, const char* basepath = NULL, bool triangulate = true);
+};
 
 struct SceneObject
 {
-    const char*  name;        
-    void*        first_index; 
-    int          num_indices; 
-    GLenum       rendering_mode; 
+    std::string  name;
+    size_t       first_index;
+    size_t       num_indices;
+    GLenum       rendering_mode;
+    GLuint       vertex_array_object_id;
 };
 
 class Player;
@@ -43,6 +58,10 @@ public:
 private:
     GLuint buildGeometry();
 
+    void computeNormals(ObjModel* model);
+    void buildTrianglesFromObj(ObjModel* model);
+    void drawVirtualObject(const std::string& object_name);
+
     void loadShadersFromFiles();
     GLuint loadShader_Vertex(const char* filename);
     GLuint loadShader_Fragment(const char* filename);
@@ -56,8 +75,9 @@ private:
     GLint m_viewUniform;
     GLint m_projectionUniform;
     GLint m_renderAsBlackUniform;
+    GLint m_objectIdUniform;
 
-    std::map<const char*, SceneObject> m_virtualScene;
+    std::map<std::string, SceneObject> m_virtualScene;
 
     glm::mat4 m_currentView;
     glm::mat4 m_currentProjection;
@@ -67,4 +87,4 @@ private:
     GLFWwindow* m_window;
 };
 
-#endif 
+#endif

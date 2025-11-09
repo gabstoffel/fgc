@@ -1,6 +1,7 @@
 #include "Input.h"
 #include "Player.h"
 #include "Game.h"
+#include "Logger.h"
 #include <cstdio>
 
 Player* Input::s_player = nullptr;
@@ -41,11 +42,27 @@ void Input::mouseButtonCallback(GLFWwindow* window, int button, int action, int 
 
 void Input::cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
 {
+    static int callback_count = 0;
+    callback_count++;
+    bool should_log = (callback_count % 100 == 0);
+
     if (s_player == nullptr)
+    {
+        if (should_log)
+            Logger::logEvent("Input.cursorPosCallback.error", "{\"reason\":\"s_player is null\"}");
         return;
+    }
 
     float dx = xpos - s_lastCursorPosX;
     float dy = ypos - s_lastCursorPosY;
+
+    if (should_log)
+        Logger::logEvent("Input.cursorPosCallback",
+            "{\"x\":%.1f,\"y\":%.1f,\"dx\":%.1f,\"dy\":%.1f,\"firstPerson\":%s,\"leftPressed\":%s,\"count\":%d}",
+            xpos, ypos, dx, dy,
+            s_player->isFirstPerson() ? "true" : "false",
+            s_leftMouseButtonPressed ? "true" : "false",
+            callback_count);
 
     if (!s_player->isFirstPerson())
     {
@@ -73,6 +90,13 @@ void Input::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 
 void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 {
+    Logger::logEvent("Input.keyCallback",
+        "{\"key\":%d,\"action\":%d,\"isF\":%s,\"isESC\":%s,\"isK\":%s}",
+        key, action,
+        (key == GLFW_KEY_F) ? "true" : "false",
+        (key == GLFW_KEY_ESCAPE) ? "true" : "false",
+        (key == GLFW_KEY_K) ? "true" : "false");
+
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, GL_TRUE);
@@ -81,8 +105,13 @@ void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, i
 
     if (key == GLFW_KEY_F && action == GLFW_PRESS)
     {
+        Logger::logEvent("Input.keyCallback.F_pressed", "{}");
+
         if (s_player == nullptr)
+        {
+            Logger::logEvent("Input.keyCallback.F_pressed.error", "{\"reason\":\"s_player is null\"}");
             return;
+        }
 
         s_player->toggleCamera();
 
@@ -93,10 +122,14 @@ void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, i
             glfwGetCursorPos(window, &xpos, &ypos);
             s_lastCursorPosX = xpos;
             s_lastCursorPosY = ypos;
+            Logger::logEvent("Input.cursorMode.disabled",
+                "{\"x\":%.1f,\"y\":%.1f}",
+                xpos, ypos);
         }
         else
         {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            Logger::logEvent("Input.cursorMode.normal", "{}");
         }
     }
 }

@@ -1,6 +1,4 @@
-// Headers C
 #include <cstdlib>
-// Game includes
 #include "Game.h"
 
 int main()

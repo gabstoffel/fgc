@@ -6,8 +6,11 @@
 #include <sstream>
 #include <cstdio>
 #include <cstdlib>
+#include <cassert>
 #include <stack>
+#include <set>
 #include <string>
+#include <algorithm>
 #include <glm/gtc/type_ptr.hpp>
 
 void TextRendering_Init();
@@ -75,12 +78,31 @@ bool Renderer::init(GLFWwindow* window)
 
     loadShadersFromFiles();
 
-    m_vertexArrayObjectID = buildGeometry();
-
     m_modelUniform = glGetUniformLocation(m_gpuProgramID, "model");
     m_viewUniform = glGetUniformLocation(m_gpuProgramID, "view");
     m_projectionUniform = glGetUniformLocation(m_gpuProgramID, "projection");
     m_renderAsBlackUniform = glGetUniformLocation(m_gpuProgramID, "render_as_black");
+    m_objectIdUniform = glGetUniformLocation(m_gpuProgramID, "object_id");
+
+    m_vertexArrayObjectID = buildGeometry();
+
+    try {
+        ObjModel monstermodel("modelos/monstro.obj");
+        computeNormals(&monstermodel);
+        buildTrianglesFromObj(&monstermodel);
+
+        ObjModel cubemodel("modelos/cube.obj");
+        computeNormals(&cubemodel);
+        buildTrianglesFromObj(&cubemodel);
+
+        ObjModel planemodel("modelos/plane.obj");
+        computeNormals(&planemodel);
+        buildTrianglesFromObj(&planemodel);
+
+        printf("All OBJ models loaded successfully!\n");
+    } catch (const std::exception& e) {
+        fprintf(stderr, "ERROR loading OBJ models: %s\n", e.what());
+    }
 
     glEnable(GL_DEPTH_TEST);
 
@@ -122,46 +144,26 @@ void Renderer::renderArena()
 {
     glm::mat4 model = Matrix_Identity();
     glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-    glUniform1i(m_renderAsBlackUniform, false);
 
-    glDrawElements(
-        m_virtualScene["piso"].rendering_mode,
-        m_virtualScene["piso"].num_indices,
-        GL_UNSIGNED_INT,
-        (void*)m_virtualScene["piso"].first_index
-    );
+    glBindVertexArray(m_vertexArrayObjectID);
 
-    glDrawElements(
-        m_virtualScene["parede_norte"].rendering_mode,
-        m_virtualScene["parede_norte"].num_indices,
-        GL_UNSIGNED_INT,
-        (void*)m_virtualScene["parede_norte"].first_index
-    );
-    glDrawElements(
-        m_virtualScene["parede_sul"].rendering_mode,
-        m_virtualScene["parede_sul"].num_indices,
-        GL_UNSIGNED_INT,
-        (void*)m_virtualScene["parede_sul"].first_index
-    );
-    glDrawElements(
-        m_virtualScene["parede_leste"].rendering_mode,
-        m_virtualScene["parede_leste"].num_indices,
-        GL_UNSIGNED_INT,
-        (void*)m_virtualScene["parede_leste"].first_index
-    );
-    glDrawElements(
-        m_virtualScene["parede_oeste"].rendering_mode,
-        m_virtualScene["parede_oeste"].num_indices,
-        GL_UNSIGNED_INT,
-        (void*)m_virtualScene["parede_oeste"].first_index
-    );
+    glUniform1i(m_objectIdUniform, 2);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(36*sizeof(GLuint)));
 
-    glDrawElements(
-        m_virtualScene["teto"].rendering_mode,
-        m_virtualScene["teto"].num_indices,
-        GL_UNSIGNED_INT,
-        (void*)m_virtualScene["teto"].first_index
-    );
+    glUniform1i(m_objectIdUniform, 3);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(50*sizeof(GLuint)));
+
+    glUniform1i(m_objectIdUniform, 4);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(56*sizeof(GLuint)));
+
+    glUniform1i(m_objectIdUniform, 5);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(62*sizeof(GLuint)));
+
+    glUniform1i(m_objectIdUniform, 6);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(68*sizeof(GLuint)));
+
+    glUniform1i(m_objectIdUniform, 7);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(44*sizeof(GLuint)));
 }
 
 void Renderer::renderPlayer(const glm::vec4& position)
@@ -169,15 +171,18 @@ void Renderer::renderPlayer(const glm::vec4& position)
     glm::mat4 model = Matrix_Identity();
 
     PushMatrix(model);
-    model = model * Matrix_Translate(position.x, position.y, position.z);
+    model = model * Matrix_Translate(position.x, position.y, position.z) * Matrix_Scale(0.1f, 0.1f, 0.1f);
     glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-    glUniform1i(m_renderAsBlackUniform, false);
-    glDrawElements(
-        m_virtualScene["cube_faces"].rendering_mode,
-        m_virtualScene["cube_faces"].num_indices,
-        GL_UNSIGNED_INT,
-        (void*)m_virtualScene["cube_faces"].first_index
-    );
+    glUniform1i(m_objectIdUniform, 1);
+
+    if (m_virtualScene.find("the_cube") != m_virtualScene.end())
+        drawVirtualObject("the_cube");
+    else if (m_virtualScene.find("cube_faces") != m_virtualScene.end())
+    {
+        glBindVertexArray(m_vertexArrayObjectID);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+    }
+
     PopMatrix(model);
 }
 
@@ -193,22 +198,19 @@ void Renderer::renderEnemies(const EnemyManager& enemyManager, const glm::vec4& 
 
         float rotation_angle = enemies[i].lookAt(playerPosition);
         model = model * Matrix_Rotate_Y(rotation_angle);
+        model = model * Matrix_Scale(0.15f, 0.15f, 0.15f);
 
         glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform1i(m_renderAsBlackUniform, false);
-        glDrawElements(
-            m_virtualScene["cube_faces"].rendering_mode,
-            m_virtualScene["cube_faces"].num_indices,
-            GL_UNSIGNED_INT,
-            (void*)m_virtualScene["cube_faces"].first_index
-        );
-        glLineWidth(2.0f);
-        glDrawElements(
-            m_virtualScene["eixo_z"].rendering_mode,
-            m_virtualScene["eixo_z"].num_indices,
-            GL_UNSIGNED_INT,
-            (void*)m_virtualScene["eixo_z"].first_index
-        );
+        glUniform1i(m_objectIdUniform, 0);
+
+        if (m_virtualScene.find("turle") != m_virtualScene.end())
+            drawVirtualObject("turle");
+        else if (m_virtualScene.find("cube_faces") != m_virtualScene.end())
+        {
+            glBindVertexArray(m_vertexArrayObjectID);
+            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+        }
+
         PopMatrix(model);
     }
 }
@@ -274,48 +276,48 @@ GLuint Renderer::buildGeometry()
     glEnableVertexAttribArray(location);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    GLfloat color_coefficients[] = {
-        1.0f, 0.5f, 0.0f, 1.0f,
-        1.0f, 0.5f, 0.0f, 1.0f,
-        0.0f, 0.5f, 1.0f, 1.0f,
-        0.0f, 0.5f, 1.0f, 1.0f,
-        1.0f, 0.5f, 0.0f, 1.0f,
-        1.0f, 0.5f, 0.0f, 1.0f,
-        0.0f, 0.5f, 1.0f, 1.0f,
-        0.0f, 0.5f, 1.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f, 1.0f,
-        0.0f, 0.0f, 1.0f, 1.0f,
-        0.3f, 0.3f, 0.3f, 1.0f,
-        0.3f, 0.3f, 0.3f, 1.0f,
-        0.3f, 0.3f, 0.3f, 1.0f,
-        0.3f, 0.3f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
-        0.5f, 0.4f, 0.3f, 1.0f,
+    GLfloat normal_coefficients[] = {
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, -1.0f, 0.0f, 0.0f,
+        0.0f, -1.0f, 0.0f, 0.0f,
+        0.0f, -1.0f, 0.0f, 0.0f,
+        0.0f, -1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        -1.0f, 0.0f, 0.0f, 0.0f,
+        -1.0f, 0.0f, 0.0f, 0.0f,
+        -1.0f, 0.0f, 0.0f, 0.0f,
+        -1.0f, 0.0f, 0.0f, 0.0f,
     };
 
-    GLuint VBO_color_coefficients_id;
-    glGenBuffers(1, &VBO_color_coefficients_id);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_color_coefficients_id);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(color_coefficients), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(color_coefficients), color_coefficients);
+    GLuint VBO_normal_coefficients_id;
+    glGenBuffers(1, &VBO_normal_coefficients_id);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_normal_coefficients_id);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(normal_coefficients), NULL, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(normal_coefficients), normal_coefficients);
     location = 1;
     number_of_dimensions = 4;
     glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
@@ -352,56 +354,56 @@ GLuint Renderer::buildGeometry()
 
     SceneObject cube_faces;
     cube_faces.name           = "Cubo (faces coloridas)";
-    cube_faces.first_index    = (void*)0;
+    cube_faces.first_index    = 0;
     cube_faces.num_indices    = 36;
     cube_faces.rendering_mode = GL_TRIANGLES;
     m_virtualScene["cube_faces"] = cube_faces;
 
     SceneObject piso;
     piso.name = "Piso";
-    piso.first_index = (void*)(36*sizeof(GLuint));
+    piso.first_index = (36*sizeof(GLuint));
     piso.num_indices = 6;
     piso.rendering_mode = GL_TRIANGLES;
     m_virtualScene["piso"] = piso;
 
     SceneObject eixo_z;
     eixo_z.name = "Z";
-    eixo_z.first_index = (void*)(42*sizeof(GLuint));
+    eixo_z.first_index = (42*sizeof(GLuint));
     eixo_z.num_indices = 2;
     eixo_z.rendering_mode = GL_LINES;
     m_virtualScene["eixo_z"] = eixo_z;
 
     SceneObject teto;
     teto.name = "Teto";
-    teto.first_index = (void*)(44*sizeof(GLuint));
+    teto.first_index = (44*sizeof(GLuint));
     teto.num_indices = 6;
     teto.rendering_mode = GL_TRIANGLES;
     m_virtualScene["teto"] = teto;
 
     SceneObject parede_norte;
     parede_norte.name = "Parede Norte";
-    parede_norte.first_index = (void*)(50*sizeof(GLuint));
+    parede_norte.first_index = (50*sizeof(GLuint));
     parede_norte.num_indices = 6;
     parede_norte.rendering_mode = GL_TRIANGLES;
     m_virtualScene["parede_norte"] = parede_norte;
 
     SceneObject parede_sul;
     parede_sul.name = "Parede Sul";
-    parede_sul.first_index = (void*)(56*sizeof(GLuint));
+    parede_sul.first_index = (56*sizeof(GLuint));
     parede_sul.num_indices = 6;
     parede_sul.rendering_mode = GL_TRIANGLES;
     m_virtualScene["parede_sul"] = parede_sul;
 
     SceneObject parede_leste;
     parede_leste.name = "Parede Leste";
-    parede_leste.first_index = (void*)(62*sizeof(GLuint));
+    parede_leste.first_index = (62*sizeof(GLuint));
     parede_leste.num_indices = 6;
     parede_leste.rendering_mode = GL_TRIANGLES;
     m_virtualScene["parede_leste"] = parede_leste;
 
     SceneObject parede_oeste;
     parede_oeste.name = "Parede Oeste";
-    parede_oeste.first_index = (void*)(68*sizeof(GLuint));
+    parede_oeste.first_index = (68*sizeof(GLuint));
     parede_oeste.num_indices = 6;
     parede_oeste.rendering_mode = GL_TRIANGLES;
     m_virtualScene["parede_oeste"] = parede_oeste;
@@ -512,4 +514,263 @@ GLuint Renderer::createGpuProgram(GLuint vertex_shader_id, GLuint fragment_shade
         fprintf(stderr, "%s", output.c_str());
     }
     return program_id;
+}
+
+ObjModel::ObjModel(const char* filename, const char* basepath, bool triangulate)
+{
+    printf("Carregando objetos do arquivo \"%s\"...\n", filename);
+
+    std::string fullpath(filename);
+    std::string dirname;
+    if (basepath == NULL)
+    {
+        auto i = fullpath.find_last_of("/");
+        if (i != std::string::npos)
+        {
+            dirname = fullpath.substr(0, i+1);
+            basepath = dirname.c_str();
+        }
+    }
+
+    std::string warn;
+    std::string err;
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename, basepath, triangulate);
+
+    if (!err.empty())
+        fprintf(stderr, "\n%s\n", err.c_str());
+
+    if (!ret)
+        throw std::runtime_error("Erro ao carregar modelo.");
+
+    for (size_t shape = 0; shape < shapes.size(); ++shape)
+    {
+        if (shapes[shape].name.empty())
+        {
+            fprintf(stderr,
+                    "*********************************************\n"
+                    "Erro: Objeto sem nome dentro do arquivo '%s'.\n"
+                    "*********************************************\n",
+                filename);
+            throw std::runtime_error("Objeto sem nome.");
+        }
+        printf("- Objeto '%s'\n", shapes[shape].name.c_str());
+    }
+    printf("OK.\n");
+}
+
+void Renderer::computeNormals(ObjModel* model)
+{
+    if (!model->attrib.normals.empty())
+        return;
+
+    std::set<unsigned int> sgroup_ids;
+    for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+    {
+        size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+
+        for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+        {
+            unsigned int sgroup = model->shapes[shape].mesh.smoothing_group_ids[triangle];
+            sgroup_ids.insert(sgroup);
+        }
+    }
+
+    size_t num_vertices = model->attrib.vertices.size() / 3;
+    model->attrib.normals.reserve(3*num_vertices);
+
+    for (const unsigned int & sgroup : sgroup_ids)
+    {
+        std::vector<int> num_triangles_per_vertex(num_vertices, 0);
+        std::vector<glm::vec4> vertex_normals(num_vertices, glm::vec4(0.0f,0.0f,0.0f,0.0f));
+
+        for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+        {
+            size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+            for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+            {
+                unsigned int sgroup_tri = model->shapes[shape].mesh.smoothing_group_ids[triangle];
+                if (sgroup_tri != sgroup)
+                    continue;
+
+                glm::vec4 vertices[3];
+                for (size_t vertex = 0; vertex < 3; ++vertex)
+                {
+                    tinyobj::index_t idx = model->shapes[shape].mesh.indices[3*triangle + vertex];
+                    const float vx = model->attrib.vertices[3*idx.vertex_index + 0];
+                    const float vy = model->attrib.vertices[3*idx.vertex_index + 1];
+                    const float vz = model->attrib.vertices[3*idx.vertex_index + 2];
+                    vertices[vertex] = glm::vec4(vx,vy,vz,1.0);
+                }
+
+                const glm::vec4 a = vertices[0];
+                const glm::vec4 b = vertices[1];
+                const glm::vec4 c = vertices[2];
+                glm::vec4 u = glm::vec4(b - a);
+                glm::vec4 v = glm::vec4(c - a);
+                const glm::vec4 n = crossproduct(u,v);
+
+                for (size_t vertex = 0; vertex < 3; ++vertex)
+                {
+                    tinyobj::index_t idx = model->shapes[shape].mesh.indices[3*triangle + vertex];
+                    num_triangles_per_vertex[idx.vertex_index] += 1;
+                    vertex_normals[idx.vertex_index] += n;
+                }
+            }
+        }
+
+        std::vector<size_t> normal_indices(num_vertices, 0);
+        for (size_t vertex_index = 0; vertex_index < vertex_normals.size(); ++vertex_index)
+        {
+            if (num_triangles_per_vertex[vertex_index] == 0)
+                continue;
+
+            glm::vec4 n = vertex_normals[vertex_index] / (float)num_triangles_per_vertex[vertex_index];
+            n /= norm(n);
+            model->attrib.normals.push_back(n.x);
+            model->attrib.normals.push_back(n.y);
+            model->attrib.normals.push_back(n.z);
+
+            size_t normal_index = (model->attrib.normals.size() / 3) - 1;
+            normal_indices[vertex_index] = normal_index;
+        }
+
+        for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+        {
+            size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+            for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+            {
+                unsigned int sgroup_tri = model->shapes[shape].mesh.smoothing_group_ids[triangle];
+                if (sgroup_tri != sgroup)
+                    continue;
+
+                for (size_t vertex = 0; vertex < 3; ++vertex)
+                {
+                    tinyobj::index_t idx = model->shapes[shape].mesh.indices[3*triangle + vertex];
+                    model->shapes[shape].mesh.indices[3*triangle + vertex].normal_index =
+                        normal_indices[idx.vertex_index];
+                }
+            }
+        }
+    }
+}
+
+void Renderer::buildTrianglesFromObj(ObjModel* model)
+{
+    GLuint vertex_array_object_id;
+    glGenVertexArrays(1, &vertex_array_object_id);
+    glBindVertexArray(vertex_array_object_id);
+
+    std::vector<GLuint> indices;
+    std::vector<float> model_coefficients;
+    std::vector<float> normal_coefficients;
+    std::vector<float> texture_coefficients;
+
+    for (size_t shape = 0; shape < model->shapes.size(); ++shape)
+    {
+        size_t first_index = indices.size();
+        size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
+
+        for (size_t triangle = 0; triangle < num_triangles; ++triangle)
+        {
+            for (size_t vertex = 0; vertex < 3; ++vertex)
+            {
+                tinyobj::index_t idx = model->shapes[shape].mesh.indices[3*triangle + vertex];
+                indices.push_back(first_index + 3*triangle + vertex);
+
+                const float vx = model->attrib.vertices[3*idx.vertex_index + 0];
+                const float vy = model->attrib.vertices[3*idx.vertex_index + 1];
+                const float vz = model->attrib.vertices[3*idx.vertex_index + 2];
+                model_coefficients.push_back(vx);
+                model_coefficients.push_back(vy);
+                model_coefficients.push_back(vz);
+                model_coefficients.push_back(1.0f);
+
+                if (idx.normal_index != -1)
+                {
+                    const float nx = model->attrib.normals[3*idx.normal_index + 0];
+                    const float ny = model->attrib.normals[3*idx.normal_index + 1];
+                    const float nz = model->attrib.normals[3*idx.normal_index + 2];
+                    normal_coefficients.push_back(nx);
+                    normal_coefficients.push_back(ny);
+                    normal_coefficients.push_back(nz);
+                    normal_coefficients.push_back(0.0f);
+                }
+
+                if (idx.texcoord_index != -1)
+                {
+                    const float u = model->attrib.texcoords[2*idx.texcoord_index + 0];
+                    const float v = model->attrib.texcoords[2*idx.texcoord_index + 1];
+                    texture_coefficients.push_back(u);
+                    texture_coefficients.push_back(v);
+                }
+            }
+        }
+
+        size_t last_index = indices.size() - 1;
+        SceneObject theobject;
+        theobject.name = model->shapes[shape].name;
+        theobject.first_index = first_index;
+        theobject.num_indices = last_index - first_index + 1;
+        theobject.rendering_mode = GL_TRIANGLES;
+        theobject.vertex_array_object_id = vertex_array_object_id;
+        m_virtualScene[model->shapes[shape].name] = theobject;
+    }
+
+    GLuint VBO_model_coefficients_id;
+    glGenBuffers(1, &VBO_model_coefficients_id);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
+    glBufferData(GL_ARRAY_BUFFER, model_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, model_coefficients.size() * sizeof(float), model_coefficients.data());
+    GLuint location = 0;
+    GLint number_of_dimensions = 4;
+    glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(location);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    if (!normal_coefficients.empty())
+    {
+        GLuint VBO_normal_coefficients_id;
+        glGenBuffers(1, &VBO_normal_coefficients_id);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_normal_coefficients_id);
+        glBufferData(GL_ARRAY_BUFFER, normal_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, normal_coefficients.size() * sizeof(float), normal_coefficients.data());
+        location = 1;
+        number_of_dimensions = 4;
+        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(location);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    if (!texture_coefficients.empty())
+    {
+        GLuint VBO_texture_coefficients_id;
+        glGenBuffers(1, &VBO_texture_coefficients_id);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_texture_coefficients_id);
+        glBufferData(GL_ARRAY_BUFFER, texture_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, texture_coefficients.size() * sizeof(float), texture_coefficients.data());
+        location = 2;
+        number_of_dimensions = 2;
+        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(location);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    GLuint indices_id;
+    glGenBuffers(1, &indices_id);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), NULL, GL_STATIC_DRAW);
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof(GLuint), indices.data());
+    glBindVertexArray(0);
+}
+
+void Renderer::drawVirtualObject(const std::string& object_name)
+{
+    glBindVertexArray(m_virtualScene[object_name].vertex_array_object_id);
+    glDrawElements(
+        m_virtualScene[object_name].rendering_mode,
+        m_virtualScene[object_name].num_indices,
+        GL_UNSIGNED_INT,
+        (void*)(m_virtualScene[object_name].first_index * sizeof(GLuint))
+    );
+    glBindVertexArray(0);
 }
