@@ -1,0 +1,114 @@
+#include "Input.h"
+#include "Player.h"
+#include "Game.h"
+#include <cstdio>
+
+Player* Input::s_player = nullptr;
+Game* Input::s_game = nullptr;
+float Input::s_screenRatio = 1.0f;
+bool Input::s_leftMouseButtonPressed = false;
+bool Input::s_shootRequested = false;
+double Input::s_lastCursorPosX = 0.0;
+double Input::s_lastCursorPosY = 0.0;
+
+void Input::init(Player* player, Game* game)
+{
+    s_player = player;
+    s_game = game;
+}
+
+void Input::framebufferSizeCallback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+    s_screenRatio = (float)width / height;
+}
+
+void Input::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    {
+        glfwGetCursorPos(window, &s_lastCursorPosX, &s_lastCursorPosY);
+        s_leftMouseButtonPressed = true;
+
+        if (s_player != nullptr && s_player->isFirstPerson())
+            s_shootRequested = true;
+    }
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
+    {
+        s_leftMouseButtonPressed = false;
+    }
+}
+
+void Input::cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
+{
+    if (s_player == nullptr)
+        return;
+
+    float dx = xpos - s_lastCursorPosX;
+    float dy = ypos - s_lastCursorPosY;
+
+    if (!s_player->isFirstPerson())
+    {
+        if (!s_leftMouseButtonPressed)
+        {
+            s_lastCursorPosX = xpos;
+            s_lastCursorPosY = ypos;
+            return;
+        }
+    }
+
+    s_player->handleMouseMove(dx, dy);
+
+    s_lastCursorPosX = xpos;
+    s_lastCursorPosY = ypos;
+}
+
+void Input::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    if (s_player == nullptr)
+        return;
+
+    s_player->handleScroll(yoffset);
+}
+
+void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
+{
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    {
+        glfwSetWindowShouldClose(window, GL_TRUE);
+        return;
+    }
+
+    if (key == GLFW_KEY_F && action == GLFW_PRESS)
+    {
+        if (s_player == nullptr)
+            return;
+
+        s_player->toggleCamera();
+
+        if (s_player->isFirstPerson())
+        {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            double xpos, ypos;
+            glfwGetCursorPos(window, &xpos, &ypos);
+            s_lastCursorPosX = xpos;
+            s_lastCursorPosY = ypos;
+        }
+        else
+        {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+    }
+}
+
+void Input::errorCallback(int error, const char* description)
+{
+    fprintf(stderr, "ERROR: GLFW: %s\n", description);
+}
+
+bool Input::isShootingRequested()
+{
+    bool requested = s_shootRequested;
+    s_shootRequested = false;
+    return requested;
+}

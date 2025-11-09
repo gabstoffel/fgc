@@ -7,6 +7,13 @@
 # ser compilados.
 set(SOURCES
   src/main.cpp
+  src/Game.cpp
+  src/Player.cpp
+  src/Enemy.cpp
+  src/Renderer.cpp
+  src/Input.cpp
+  src/utils.cpp
+  src/collisions.cpp
   src/textrendering.cpp
   src/tiny_obj_loader.cpp
   src/glad.c

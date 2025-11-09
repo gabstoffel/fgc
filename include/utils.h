@@ -2,6 +2,10 @@
 #define _UTILS_H
 
 #include <cstdio>
+#include <glad/glad.h>
+
+// Forward declaration for shader program creation (used by textrendering.cpp)
+GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id);
 
 static GLenum glCheckError_(const char *file, int line)
 {
