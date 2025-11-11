@@ -132,12 +132,8 @@ void Renderer::renderScene(const Player& player, const EnemyManager& enemyManage
     glBindVertexArray(m_vertexArrayObjectID);
 
     renderArena();
-
     renderPlayer(player.getPosition());
-
     renderEnemies(enemyManager, player.getPosition());
-
-    renderCrosshair(player.isFirstPerson());
 }
 
 void Renderer::renderArena()
@@ -218,7 +214,7 @@ void Renderer::renderEnemies(const EnemyManager& enemyManager, const glm::vec4& 
 void Renderer::renderCrosshair(bool isFirstPerson)
 {
     if (!isFirstPerson || m_window == nullptr)
-        return; 
+        return;
 
     TextRendering_PrintString(m_window, "+", 0.0f, 0.0f, 2.0f);
 }
