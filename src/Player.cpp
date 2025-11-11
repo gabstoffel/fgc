@@ -11,7 +11,7 @@ Player::Player()
     , m_cameraDistance(2.0f)
     , m_cameraYaw(-1.57079632f)
     , m_cameraPitch(0.0f)
-    , m_movementSpeed(0.01f)
+    , m_movementSpeed(0.4f)
     , m_lastCursorPosX(0.0)
     , m_lastCursorPosY(0.0)
 {
@@ -36,26 +36,26 @@ void Player::update(GLFWwindow* window, float deltaTime)
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         {
-            m_position += camera_front_xz * m_movementSpeed;
+            m_position += camera_front_xz * m_movementSpeed*deltaTime;
             if (should_log) printf("[FP Movement] W pressed, pos: (%.2f, %.2f, %.2f)\n", m_position.x, m_position.y, m_position.z);
         }
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-            m_position -= camera_front_xz * m_movementSpeed;
+            m_position -= camera_front_xz * m_movementSpeed*deltaTime;
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            m_position -= camera_right_xz * m_movementSpeed;
+            m_position -= camera_right_xz * m_movementSpeed*deltaTime;
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-            m_position += camera_right_xz * m_movementSpeed;
+            m_position += camera_right_xz * m_movementSpeed*deltaTime;
     }
     else
     {
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-            m_position.z -= m_movementSpeed;
+            m_position.z -= m_movementSpeed*deltaTime;
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-            m_position.z += m_movementSpeed;
+            m_position.z += m_movementSpeed*deltaTime;
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            m_position.x -= m_movementSpeed;
+            m_position.x -= m_movementSpeed*deltaTime;
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-            m_position.x += m_movementSpeed;
+            m_position.x += m_movementSpeed*deltaTime;
     }
 
     if (should_log)
@@ -139,7 +139,7 @@ void Player::handleMouseMove(float dx, float dy)
     }
     else
     {
-        float sensitivity = 0.003f;
+        float sensitivity = 0.001f;
         float old_yaw = m_cameraYaw;
         float old_pitch = m_cameraPitch;
 

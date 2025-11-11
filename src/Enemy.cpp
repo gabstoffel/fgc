@@ -8,6 +8,7 @@ Enemy::Enemy(float x, float z, int vida)
     : m_x(x)
     , m_z(z)
     , m_vida(vida)
+    , m_enemySpeed(0.2f)
 {
 }
 
@@ -17,6 +18,13 @@ Enemy::~Enemy()
 
 void Enemy::update(float deltaTime, const Player& player)
 {
+    glm::vec4 pos_enemy = glm::vec4(m_x, 0.0f, m_z, 1.0f);
+    glm::vec4 pos_player = glm::vec4(player.m_position.x, 0.0f, player.m_position.z, 1.0f);
+    glm::vec4 distance = pos_player-pos_enemy;
+    distance = distance/norm(distance);
+    pos_enemy += distance*m_enemySpeed*deltaTime;
+    m_x = pos_enemy.x;
+    m_z = pos_enemy.z;
 }
 
 float Enemy::lookAt(const glm::vec4& targetPosition) const
