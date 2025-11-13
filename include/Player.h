@@ -23,6 +23,7 @@ public:
     bool isFirstPerson() const { return m_firstPerson; }
     glm::vec4 getCameraDirection() const;
     glm::vec4 getCameraPosition() const;
+    float getMovementAngle() const { return m_movementAngle; }
 
     void setPosition(const glm::vec4& position) { m_position = position; }
 
@@ -37,10 +38,11 @@ private:
     float m_cameraPhi;      
     float m_cameraDistance; 
 
-    float m_cameraYaw;      
-    float m_cameraPitch;    
+    float m_cameraYaw;
+    float m_cameraPitch;
 
     float m_movementSpeed;
+    float m_movementAngle;
 
     double m_lastCursorPosX;
     double m_lastCursorPosY;

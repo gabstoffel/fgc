@@ -19,7 +19,8 @@ Enemy::~Enemy()
 void Enemy::update(float deltaTime, const Player& player)
 {
     glm::vec4 pos_enemy = glm::vec4(m_x, 0.0f, m_z, 1.0f);
-    glm::vec4 pos_player = glm::vec4(player.m_position.x, 0.0f, player.m_position.z, 1.0f);
+    glm::vec4 player_position = player.getPosition();
+    glm::vec4 pos_player = glm::vec4(player_position.x, 0.0f, player_position.z, 1.0f);
     glm::vec4 distance = pos_player-pos_enemy;
     distance = distance/norm(distance);
     pos_enemy += distance*m_enemySpeed*deltaTime;
@@ -72,13 +73,13 @@ void EnemyManager::update(float deltaTime, const Player& player)
 void EnemyManager::spawnEnemy(const glm::vec4& playerPosition)
 {
     float x_aleatorio = 1.8f * rand() / (static_cast<float>(RAND_MAX)) - 0.9f;
-    float z_aleatorio = 1.8f * rand() / (static_cast<float>(RAND_MAX)) - 0.9f;
+    float z_aleatorio = 0.9f * rand() / (static_cast<float>(RAND_MAX)); 
 
     while ((x_aleatorio - playerPosition.x) * (x_aleatorio - playerPosition.x) +
-           (z_aleatorio - playerPosition.z) * (z_aleatorio - playerPosition.z) < 0.1f)
+           (z_aleatorio - playerPosition.z) * (z_aleatorio - playerPosition.z) < 0.3f)
     {
         x_aleatorio = 1.8f * rand() / (static_cast<float>(RAND_MAX)) - 0.9f;
-        z_aleatorio = 1.8f * rand() / (static_cast<float>(RAND_MAX)) - 0.9f;
+        z_aleatorio = 0.9f * rand() / (static_cast<float>(RAND_MAX));
     }
 
     Enemy novo_inimigo(x_aleatorio, z_aleatorio, 100);

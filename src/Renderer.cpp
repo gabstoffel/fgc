@@ -99,6 +99,14 @@ bool Renderer::init(GLFWwindow* window)
         computeNormals(&planemodel);
         buildTrianglesFromObj(&planemodel);
 
+        ObjModel arqueiramodel("modelos/arqueira.obj");
+        computeNormals(&arqueiramodel);
+        buildTrianglesFromObj(&arqueiramodel);
+
+        ObjModel dragonmodel("modelos/dragon.obj");
+        computeNormals(&dragonmodel);
+        buildTrianglesFromObj(&dragonmodel);
+
         printf("All OBJ models loaded successfully!\n");
     } catch (const std::exception& e) {
         fprintf(stderr, "ERROR loading OBJ models: %s\n", e.what());
@@ -123,7 +131,7 @@ void Renderer::setView(const glm::mat4& view)
     glUniformMatrix4fv(m_viewUniform, 1, GL_FALSE, glm::value_ptr(view));
 }
 
-void Renderer::renderScene(const Player& player, const EnemyManager& enemyManager)
+void Renderer::renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive)
 {
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -132,8 +140,9 @@ void Renderer::renderScene(const Player& player, const EnemyManager& enemyManage
     glBindVertexArray(m_vertexArrayObjectID);
 
     renderArena();
-    renderPlayer(player.getPosition());
+    renderPlayer(player);
     renderEnemies(enemyManager, player.getPosition());
+    renderDragonBoss(dragonBoss, dragonBossAlive);
 }
 
 void Renderer::renderArena()
@@ -162,15 +171,20 @@ void Renderer::renderArena()
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(44*sizeof(GLuint)));
 }
 
-void Renderer::renderPlayer(const glm::vec4& position)
+void Renderer::renderPlayer(const Player& player)
 {
     glm::mat4 model = Matrix_Identity();
+    glm::vec4 position = player.getPosition();
 
     PushMatrix(model);
-    model = model * Matrix_Translate(position.x, position.y, position.z) * Matrix_Scale(0.1f, 0.1f, 0.1f);
-    glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-    glUniform1i(m_objectIdUniform, 1);
 
+    model = model * Matrix_Translate(position.x, position.y, position.z)
+                  * Matrix_Rotate_Y(player.getMovementAngle())
+                  * Matrix_Scale(0.1f, 0.1f, 0.1f);
+    glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+    glUniform1i(m_objectIdUniform, 1); 
+
+    // Render the cube
     if (m_virtualScene.find("the_cube") != m_virtualScene.end())
         drawVirtualObject("the_cube");
     else if (m_virtualScene.find("cube_faces") != m_virtualScene.end())
@@ -209,6 +223,34 @@ void Renderer::renderEnemies(const EnemyManager& enemyManager, const glm::vec4& 
 
         PopMatrix(model);
     }
+}
+
+void Renderer::renderDragonBoss(const Enemy& dragon, bool isAlive)
+{
+    if (!isAlive)
+        return;
+
+    glm::mat4 model = Matrix_Identity();
+    glm::vec4 dragonPos = dragon.getPosition();
+
+    PushMatrix(model);
+
+    static float rotation = 0.0f;
+    rotation += 0.01f;  
+
+    model = model * Matrix_Translate(dragonPos.x, dragonPos.y + 0.15f, dragonPos.z)
+                  * Matrix_Rotate_Y(rotation)
+                  * Matrix_Scale(0.4f, 0.4f, 0.4f);
+
+    glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+    glUniform1i(m_objectIdUniform, 9);
+
+    if (m_virtualScene.find("Mesh1.001") != m_virtualScene.end())
+    {
+        drawVirtualObject("Mesh1.001");
+    }
+
+    PopMatrix(model);
 }
 
 void Renderer::renderCrosshair(bool isFirstPerson)

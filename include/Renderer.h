@@ -31,6 +31,7 @@ struct SceneObject
 };
 
 class Player;
+class Enemy;
 class EnemyManager;
 
 class Renderer
@@ -41,11 +42,12 @@ public:
 
     bool init(GLFWwindow* window);
 
-    void renderScene(const Player& player, const EnemyManager& enemyManager);
+    void renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive);
 
     void renderArena();
-    void renderPlayer(const glm::vec4& position);
+    void renderPlayer(const Player& player);
     void renderEnemies(const EnemyManager& enemyManager, const glm::vec4& playerPosition);
+    void renderDragonBoss(const Enemy& dragon, bool isAlive);
     void renderCrosshair(bool isFirstPerson);
 
     void setProjection(const glm::mat4& projection);

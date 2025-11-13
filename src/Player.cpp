@@ -4,14 +4,15 @@
 #include <cmath>
 
 Player::Player()
-    : m_position(0.0f, 0.101f, 0.0f, 1.0f)
+    : m_position(0.0f, 0.101f, -0.7f, 1.0f) 
     , m_firstPerson(false)
-    , m_cameraTheta(0.0f)
+    , m_cameraTheta(0.0f)  
     , m_cameraPhi(0.5f)
     , m_cameraDistance(2.0f)
     , m_cameraYaw(-1.57079632f)
     , m_cameraPitch(0.0f)
     , m_movementSpeed(0.4f)
+    , m_movementAngle(0.0f)
     , m_lastCursorPosX(0.0)
     , m_lastCursorPosY(0.0)
 {
@@ -26,6 +27,8 @@ void Player::update(GLFWwindow* window, float deltaTime)
     static int frame_count = 0;
     bool should_log = (frame_count++ % 60 == 0);
 
+    glm::vec2 movement_input(0.0f, 0.0f);
+
     if (m_firstPerson)
     {
         glm::vec4 camera_front_xz = glm::vec4(sin(m_cameraYaw), 0.0f, cos(m_cameraYaw), 0.0f);
@@ -37,30 +40,62 @@ void Player::update(GLFWwindow* window, float deltaTime)
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         {
             m_position += camera_front_xz * m_movementSpeed*deltaTime;
+            movement_input.y += 1.0f;
             if (should_log) printf("[FP Movement] W pressed, pos: (%.2f, %.2f, %.2f)\n", m_position.x, m_position.y, m_position.z);
         }
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        {
             m_position -= camera_front_xz * m_movementSpeed*deltaTime;
+            movement_input.y -= 1.0f;
+        }
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        {
             m_position -= camera_right_xz * m_movementSpeed*deltaTime;
+            movement_input.x -= 1.0f;
+        }
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        {
             m_position += camera_right_xz * m_movementSpeed*deltaTime;
+            movement_input.x += 1.0f;
+        }
+
+        if (movement_input.x != 0.0f || movement_input.y != 0.0f)
+        {
+            m_movementAngle = atan2(movement_input.x, movement_input.y) + m_cameraYaw;
+        }
     }
     else
     {
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        {
             m_position.z -= m_movementSpeed*deltaTime;
+            movement_input.y += 1.0f;
+        }
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        {
             m_position.z += m_movementSpeed*deltaTime;
+            movement_input.y -= 1.0f;
+        }
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        {
             m_position.x -= m_movementSpeed*deltaTime;
+            movement_input.x -= 1.0f;
+        }
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        {
             m_position.x += m_movementSpeed*deltaTime;
+            movement_input.x += 1.0f;
+        }
+
+        if (movement_input.x != 0.0f || movement_input.y != 0.0f)
+        {
+            m_movementAngle = atan2(movement_input.x, movement_input.y);
+        }
     }
 
     if (should_log)
-        printf("[Player] Pos: (%.2f,%.2f,%.2f) Yaw:%.2f Pitch:%.2f FP:%d\n",
-               m_position.x, m_position.y, m_position.z, m_cameraYaw, m_cameraPitch, m_firstPerson);
+        printf("[Player] Pos: (%.2f,%.2f,%.2f) Yaw:%.2f Pitch:%.2f FP:%d Angle:%.2f\n",
+               m_position.x, m_position.y, m_position.z, m_cameraYaw, m_cameraPitch, m_firstPerson, m_movementAngle);
 }
 
 glm::mat4 Player::getCameraView() const

@@ -21,6 +21,8 @@ uniform mat4 projection;
 #define WALL_EAST 5
 #define WALL_WEST 6
 #define CEILING 7
+#define PLAYER_ARCHER 8
+#define DRAGON_BOSS 9
 uniform int object_id;
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
@@ -137,6 +139,20 @@ void main()
         Ks = vec3(0.05,0.05,0.05);
         Ka = vec3(0.05,0.05,0.08);
         q = 5.0;
+    }
+    else if ( object_id == PLAYER_ARCHER )
+    {
+        Kd = vec3(0.7,0.5,0.3);
+        Ks = vec3(0.3,0.3,0.3);
+        Ka = vec3(0.3,0.2,0.15);
+        q = 20.0;
+    }
+    else if ( object_id == DRAGON_BOSS )
+    {
+        Kd = vec3(0.5,0.2,0.2);
+        Ks = vec3(0.5,0.5,0.5);
+        Ka = vec3(0.2,0.1,0.1);
+        q = 32.0;
     }
     else
     {

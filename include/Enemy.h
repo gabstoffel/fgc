@@ -25,9 +25,10 @@ public:
     glm::vec4 getPosition() const { return glm::vec4(m_x, 0.101f, m_z, 1.0f); }
 
 private:
-    float m_x;    
-    float m_z;    
-    int m_vida;   
+    float m_x;
+    float m_z;
+    int m_vida;
+    float m_enemySpeed;   
 };
 
 class EnemyManager

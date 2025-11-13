@@ -9,7 +9,9 @@
 #include <glm/gtc/type_ptr.hpp>
 
 Game::Game()
-    : m_window(nullptr)
+    : m_dragonBoss(0.0f, 0.7f, 500)  
+    , m_dragonBossAlive(true)
+    , m_window(nullptr)
     , m_lastFrameTime(0.0)
     , m_segundoAnterior(0)
 {
@@ -109,7 +111,7 @@ void Game::render()
 
     m_renderer.setView(view);
     m_renderer.setProjection(projection);
-    m_renderer.renderScene(m_player, m_enemyManager);
+    m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
 }
 
 void Game::handleCollisions()
@@ -187,11 +189,44 @@ void Game::handleShooting()
         }
     }
 
+    if (!hit_any && m_dragonBossAlive)
+    {
+        glm::vec4 dragon_pos = m_dragonBoss.getPosition();
+        glm::vec3 dragon_center = glm::vec3(dragon_pos.x, dragon_pos.y + 0.15f, dragon_pos.z);
+        float dragon_radius = 0.3f; 
+        float t;
+
+        float dx = dragon_center.x - ray_origin_3d.x;
+        float dy = dragon_center.y - ray_origin_3d.y;
+        float dz = dragon_center.z - ray_origin_3d.z;
+        float distance_to_dragon = sqrt(dx*dx + dy*dy + dz*dz);
+
+        printf("  Dragon Boss at (%.2f, %.2f, %.2f), distance: %.2f",
+               dragon_pos.x, dragon_pos.y + 0.15f, dragon_pos.z, distance_to_dragon);
+
+        if (testRaySphere(ray_origin_3d, ray_dir_3d, dragon_center, dragon_radius, t))
+        {
+            m_dragonBoss.takeDamage(100);
+            printf(" -> HIT DRAGON BOSS! (t=%.2f) Health: %d\n", t, m_dragonBoss.getVida());
+            hit_any = true;
+
+            if (m_dragonBoss.isDead())
+            {
+                m_dragonBossAlive = false;
+                printf("*** DRAGON BOSS DEFEATED! ***\n");
+            }
+        }
+        else
+        {
+            printf(" -> miss\n");
+        }
+    }
+
     if (!hit_any && enemies.size() > 0)
     {
         printf("MISS! No enemies hit.\n");
     }
-    else if (enemies.size() == 0)
+    else if (enemies.size() == 0 && !m_dragonBossAlive)
     {
         printf("No enemies to shoot!\n");
     }

@@ -22,6 +22,8 @@ public:
     GLFWwindow* getWindow() { return m_window; }
     Player& getPlayer() { return m_player; }
     Renderer& getRenderer() { return m_renderer; }
+    const Enemy& getDragonBoss() const { return m_dragonBoss; }
+    bool isDragonBossAlive() const { return m_dragonBossAlive; }
 
     void setShouldClose(bool shouldClose);
 
@@ -39,6 +41,8 @@ private:
     Player m_player;
     EnemyManager m_enemyManager;
     Renderer m_renderer;
+    Enemy m_dragonBoss;
+    bool m_dragonBossAlive;
 
     GLFWwindow* m_window;
 
