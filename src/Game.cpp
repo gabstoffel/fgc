@@ -9,7 +9,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 Game::Game()
-    : m_dragonBoss(-3.5f, 0.0f, 500)  /
+    : m_dragonBoss(-3.5f, 0.0f, 500)  
     , m_dragonBossAlive(true)
     , m_window(nullptr)
     , m_lastFrameTime(0.0)
