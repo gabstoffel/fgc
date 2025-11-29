@@ -4,7 +4,7 @@
 ProjectileManager::ProjectileManager()
     : m_projectileSpeed(6.0f)
     , m_maxLifetime(3.0f)
-    , m_trailUpdateInterval(0.02f)
+    , m_trailUpdateInterval(0.015f)
     , m_maxProjectiles(20)
 {
 }

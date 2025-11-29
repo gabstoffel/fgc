@@ -359,43 +359,6 @@ void Game::handleProjectileCollisions()
 
 void Game::handleDebugKillKey()
 {
-    static bool k_was_pressed = false;
-    bool k_is_pressed = (glfwGetKey(m_window, GLFW_KEY_K) == GLFW_PRESS);
-
-    if (k_is_pressed && !k_was_pressed)
-    {
-        std::vector<Enemy>& enemies = const_cast<std::vector<Enemy>&>(m_enemyManager.getEnemies());
-
-        if (enemies.empty())
-        {
-            printf("DEBUG: No enemies to kill!\n");
-            k_was_pressed = k_is_pressed;
-            return;
-        }
-
-        glm::vec4 player_pos = m_player.getPosition();
-        float min_distance = std::numeric_limits<float>::max();
-        size_t nearest_index = 0;
-
-        for (size_t i = 0; i < enemies.size(); i++)
-        {
-            glm::vec4 enemy_pos = enemies[i].getPosition();
-            float dx = enemy_pos.x - player_pos.x;
-            float dz = enemy_pos.z - player_pos.z;
-            float distance = sqrt(dx * dx + dz * dz);
-
-            if (distance < min_distance)
-            {
-                min_distance = distance;
-                nearest_index = i;
-            }
-        }
-
-        enemies[nearest_index].takeDamage(100);
-        printf("DEBUG: Killed nearest enemy at distance %.2f\n", min_distance);
-    }
-
-    k_was_pressed = k_is_pressed;
 }
 
 void Game::cleanup()

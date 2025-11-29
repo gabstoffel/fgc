@@ -329,7 +329,13 @@ void Renderer::renderProjectiles(const ProjectileManager& projectileManager)
             int idx = (proj.trailIndex - 1 - t + Projectile::TRAIL_LENGTH) % Projectile::TRAIL_LENGTH;
             glm::vec3 trailPos = proj.trailPositions[idx];
 
-            float scale = 0.03f * (1.0f - (float)t / Projectile::TRAIL_LENGTH);
+            float dx = trailPos.x - proj.position.x;
+            float dy = trailPos.y - proj.position.y;
+            float dz = trailPos.z - proj.position.z;
+            float distSq = dx*dx + dy*dy + dz*dz;
+            if (distSq < 0.01f) continue;
+
+            float scale = 0.04f * (1.0f - (float)t / Projectile::TRAIL_LENGTH);
             if (scale < 0.01f) continue;
 
             model = Matrix_Identity();
@@ -337,7 +343,7 @@ void Renderer::renderProjectiles(const ProjectileManager& projectileManager)
                           * Matrix_Scale(scale, scale, scale);
 
             glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-            glUniform1i(m_objectIdUniform, 12); 
+            glUniform1i(m_objectIdUniform, 12);
 
             glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
         }
@@ -357,10 +363,7 @@ void Renderer::renderHitMarker()
 
 void Renderer::renderMuzzleFlash()
 {
-    if (m_window == nullptr)
-        return;
-
-    TextRendering_PrintString(m_window, "*", 0.05f, -0.05f, 3.0f);
+    // Removed - purple projectile provides sufficient visual feedback
 }
 
 void Renderer::renderDamageFlash(float intensity)
@@ -380,7 +383,7 @@ void Renderer::renderCrosshair(bool isFirstPerson)
     if (!isFirstPerson || m_window == nullptr)
         return;
 
-    TextRendering_PrintString(m_window, "+", -0.02f, -0.02f, 2.5f);
+    TextRendering_PrintString(m_window, "+", -0.02f, -0.02f, 2.0f);
 }
 
 void Renderer::renderHUD(const Player& player, const EnemyManager& enemies, const Enemy& boss, bool bossAlive)

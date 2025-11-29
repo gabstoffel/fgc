@@ -73,20 +73,16 @@ void Enemy::recalculateCurve(const glm::vec4& playerPos)
 
         glm::vec4 perp = glm::vec4(-dir.z, 0.0f, dir.x, 0.0f);
 
-        // P1:
-        if (norm(currentVelocity) > 0.001f) {
-            glm::vec4 velDir = currentVelocity / norm(currentVelocity);
-            m_bezierP1 = m_bezierP0 + velDir * (distance * 0.33f);
-        } else {
-            float rand1 = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
-            m_bezierP1 = m_bezierP0 + dir * (distance * 0.33f)
-                       + perp * (rand1 * distance * 0.15f);
-        }
+        float side1 = (rand() % 2 == 0) ? 1.0f : -1.0f;
+        float side2 = -side1; // garante que os pontos vão ficar em lados opostos
 
-        // P2
-        float rand2 = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+        float offset1 = 0.3f + ((float)rand() / RAND_MAX) * 0.2f; 
+        m_bezierP1 = m_bezierP0 + dir * (distance * 0.33f)
+                   + perp * (side1 * distance * offset1);
+
+        float offset2 = 0.3f + ((float)rand() / RAND_MAX) * 0.2f; 
         m_bezierP2 = m_bezierP0 + dir * (distance * 0.66f)
-                   + perp * (rand2 * distance * 0.15f);
+                   + perp * (side2 * distance * offset2);
     }
 
     m_bezierT = 0.0f;

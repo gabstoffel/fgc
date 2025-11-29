@@ -201,7 +201,7 @@ void main()
     }
     else if(object_id == PROJECTILE_TRAIL)
     {
-        color.rgb = vec3(0.5, 0.1, 0.7) * 1.2;
+        color.rgb = vec3(0.5, 0.1, 0.7) * 2.5;
     }
     else
     {
