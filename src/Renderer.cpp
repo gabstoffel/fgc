@@ -12,7 +12,7 @@
 #include <string>
 #include <algorithm>
 #include <glm/gtc/type_ptr.hpp>
-
+#include <stb_image.h>
 void TextRendering_Init();
 void TextRendering_PrintString(GLFWwindow* window, const std::string &str, float x, float y, float scale);
 
@@ -83,10 +83,34 @@ bool Renderer::init(GLFWwindow* window)
     m_projectionUniform = glGetUniformLocation(m_gpuProgramID, "projection");
     m_renderAsBlackUniform = glGetUniformLocation(m_gpuProgramID, "render_as_black");
     m_objectIdUniform = glGetUniformLocation(m_gpuProgramID, "object_id");
+    m_bbox_min_uniform   = glGetUniformLocation(m_gpuProgramID, "bbox_min");
+    m_bbox_max_uniform   = glGetUniformLocation(m_gpuProgramID, "bbox_max");
+
+    glUseProgram(m_gpuProgramID);
+    //Inimigo
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage0"), 0);
+    //Parede
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage1"), 1);
+    //Chão
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage2"), 2);
+    //Telhado
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage3"), 3);
+    //Player
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage4"), 4);
+    //Varinha
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage5"), 5);
+    glUseProgram(0);
 
     m_vertexArrayObjectID = buildGeometry();
 
     try {
+        LoadTextureImage("texturas/monstro.jpg"); //Monstro
+        LoadTextureImage("texturas/parede.jpg");
+        LoadTextureImage("texturas/Chao.png");
+        LoadTextureImage("texturas/telhado.jpg");
+        LoadTextureImage("texturas/Arqueira.png");
+        LoadTextureImage("texturas/Varinha.png");
+
         ObjModel monstermodel("modelos/monstro.obj");
         computeNormals(&monstermodel);
         buildTrianglesFromObj(&monstermodel);
@@ -106,6 +130,10 @@ bool Renderer::init(GLFWwindow* window)
         ObjModel dragonmodel("modelos/dragon.obj");
         computeNormals(&dragonmodel);
         buildTrianglesFromObj(&dragonmodel);
+
+        ObjModel varinhamodel("modelos/varinha.obj");
+        computeNormals(&varinhamodel);
+        buildTrianglesFromObj(&varinhamodel);
 
         printf("All OBJ models loaded successfully!\n");
     } catch (const std::exception& e) {
@@ -177,16 +205,24 @@ void Renderer::renderPlayer(const Player& player)
     glm::vec4 position = player.getPosition();
 
     PushMatrix(model);
-
-    model = model * Matrix_Translate(position.x, position.y, position.z)
-                  * Matrix_Rotate_Y(player.getMovementAngle())
-                  * Matrix_Scale(0.1f, 0.1f, 0.1f);
+    float dist_chao = m_virtualScene["Arqueira"].bbox_min.y;
+    dist_chao=0-dist_chao;
+    dist_chao=dist_chao*0.001f;
+    model = model * Matrix_Translate(position.x, dist_chao, position.z)
+                  * Matrix_Rotate_Y(player.getMovementAngle());
+    PushMatrix(model);
+        //Varinha
+        model = model*Matrix_Translate(0.057f,0.06f,0.02f)*Matrix_Rotate_X(M_PI/4)* Matrix_Scale(0.09f, 0.09f, 0.09f);
+        glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(m_objectIdUniform, 10);
+        drawVirtualObject("Varinha");
+    PopMatrix(model);
+    model=model* Matrix_Scale(0.001f, 0.001f, 0.001f);
     glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-    glUniform1i(m_objectIdUniform, 1); 
-
-    // Render the cube
-    if (m_virtualScene.find("the_cube") != m_virtualScene.end())
-        drawVirtualObject("the_cube");
+    glUniform1i(m_objectIdUniform, 1);
+    // Renderriza o player
+    if (m_virtualScene.find("Arqueira") != m_virtualScene.end())
+        drawVirtualObject("Arqueira");
     else if (m_virtualScene.find("cube_faces") != m_virtualScene.end())
     {
         glBindVertexArray(m_vertexArrayObjectID);
@@ -200,12 +236,13 @@ void Renderer::renderEnemies(const EnemyManager& enemyManager, const glm::vec4& 
 {
     const std::vector<Enemy>& enemies = enemyManager.getEnemies();
     glm::mat4 model = Matrix_Identity();
-
+    float dist_chao = m_virtualScene["turle"].bbox_min.y;
+    dist_chao=0-dist_chao;
+    dist_chao=dist_chao*0.15f;
     for (size_t i = 0; i < enemies.size(); i++)
     {
         PushMatrix(model);
-        model = model * Matrix_Translate(enemies[i].getX(), 0.101f, enemies[i].getZ());
-
+        model = model * Matrix_Translate(enemies[i].getX(), dist_chao, enemies[i].getZ());
         float rotation_angle = enemies[i].lookAt(playerPosition);
         model = model * Matrix_Rotate_Y(rotation_angle);
         model = model * Matrix_Scale(0.15f, 0.15f, 0.15f);
@@ -236,7 +273,7 @@ void Renderer::renderDragonBoss(const Enemy& dragon, bool isAlive)
     PushMatrix(model);
 
     static float rotation = 0.0f;
-    rotation += 0.01f;  
+    rotation += 0.01f;
 
     model = model * Matrix_Translate(dragonPos.x, dragonPos.y + 0.15f, dragonPos.z)
                   * Matrix_Rotate_Y(rotation)
@@ -258,7 +295,6 @@ void Renderer::renderCrosshair(bool isFirstPerson)
     if (!isFirstPerson || m_window == nullptr)
         return;
 
-    TextRendering_PrintString(m_window, "+", 0.0f, 0.0f, 2.0f);
 }
 
 GLuint Renderer::buildGeometry()
@@ -453,6 +489,57 @@ GLuint Renderer::buildGeometry()
     glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
     glBindVertexArray(0);
     return vertex_array_object_id;
+}
+
+void Renderer::LoadTextureImage(const char* filename)
+{
+    printf("Carregando imagem \"%s\"... ", filename);
+
+    // Primeiro fazemos a leitura da imagem do disco
+    stbi_set_flip_vertically_on_load(true);
+    int width;
+    int height;
+    int channels;
+    unsigned char *data = stbi_load(filename, &width, &height, &channels, 3);
+
+    if ( data == NULL )
+    {
+        fprintf(stderr, "ERROR: Cannot open image file \"%s\".\n", filename);
+        std::exit(EXIT_FAILURE);
+    }
+
+    printf("OK (%dx%d).\n", width, height);
+
+    // Agora criamos objetos na GPU com OpenGL para armazenar a textura
+    GLuint texture_id;
+    GLuint sampler_id;
+    glGenTextures(1, &texture_id);
+    glGenSamplers(1, &sampler_id);
+
+    // Veja slides 95-96 do documento Aula_20_Mapeamento_de_Texturas.pdf
+    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    // Parâmetros de amostragem da textura.
+    glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Agora enviamos a imagem lida do disco para a GPU
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+
+    GLuint textureunit = m_NumLoadedTextures;
+    glActiveTexture(GL_TEXTURE0 + textureunit);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glBindSampler(textureunit, sampler_id);
+
+    stbi_image_free(data);
+
+    m_NumLoadedTextures += 1;
 }
 
 void Renderer::loadShadersFromFiles()
@@ -699,58 +786,80 @@ void Renderer::buildTrianglesFromObj(ObjModel* model)
     glBindVertexArray(vertex_array_object_id);
 
     std::vector<GLuint> indices;
-    std::vector<float> model_coefficients;
-    std::vector<float> normal_coefficients;
-    std::vector<float> texture_coefficients;
+    std::vector<float>  model_coefficients;
+    std::vector<float>  normal_coefficients;
+    std::vector<float>  texture_coefficients;
 
     for (size_t shape = 0; shape < model->shapes.size(); ++shape)
     {
         size_t first_index = indices.size();
         size_t num_triangles = model->shapes[shape].mesh.num_face_vertices.size();
 
+        const float minval = std::numeric_limits<float>::min();
+        const float maxval = std::numeric_limits<float>::max();
+
+        glm::vec3 bbox_min = glm::vec3(maxval,maxval,maxval);
+        glm::vec3 bbox_max = glm::vec3(minval,minval,minval);
+
         for (size_t triangle = 0; triangle < num_triangles; ++triangle)
         {
+            assert(model->shapes[shape].mesh.num_face_vertices[triangle] == 3);
+
             for (size_t vertex = 0; vertex < 3; ++vertex)
             {
                 tinyobj::index_t idx = model->shapes[shape].mesh.indices[3*triangle + vertex];
+
                 indices.push_back(first_index + 3*triangle + vertex);
 
                 const float vx = model->attrib.vertices[3*idx.vertex_index + 0];
                 const float vy = model->attrib.vertices[3*idx.vertex_index + 1];
                 const float vz = model->attrib.vertices[3*idx.vertex_index + 2];
-                model_coefficients.push_back(vx);
-                model_coefficients.push_back(vy);
-                model_coefficients.push_back(vz);
-                model_coefficients.push_back(1.0f);
+                model_coefficients.push_back( vx );
+                model_coefficients.push_back( vy );
+                model_coefficients.push_back( vz );
+                model_coefficients.push_back( 1.0f );
 
-                if (idx.normal_index != -1)
+                bbox_min.x = std::min(bbox_min.x, vx);
+                bbox_min.y = std::min(bbox_min.y, vy);
+                bbox_min.z = std::min(bbox_min.z, vz);
+                bbox_max.x = std::max(bbox_max.x, vx);
+                bbox_max.y = std::max(bbox_max.y, vy);
+                bbox_max.z = std::max(bbox_max.z, vz);
+
+
+                if ( idx.normal_index != -1 )
                 {
                     const float nx = model->attrib.normals[3*idx.normal_index + 0];
                     const float ny = model->attrib.normals[3*idx.normal_index + 1];
                     const float nz = model->attrib.normals[3*idx.normal_index + 2];
-                    normal_coefficients.push_back(nx);
-                    normal_coefficients.push_back(ny);
-                    normal_coefficients.push_back(nz);
-                    normal_coefficients.push_back(0.0f);
+                    normal_coefficients.push_back( nx );
+                    normal_coefficients.push_back( ny );
+                    normal_coefficients.push_back( nz );
+                    normal_coefficients.push_back( 0.0f );
                 }
 
-                if (idx.texcoord_index != -1)
+                if ( idx.texcoord_index != -1 )
                 {
                     const float u = model->attrib.texcoords[2*idx.texcoord_index + 0];
                     const float v = model->attrib.texcoords[2*idx.texcoord_index + 1];
-                    texture_coefficients.push_back(u);
-                    texture_coefficients.push_back(v);
+                    texture_coefficients.push_back( u );
+                    texture_coefficients.push_back( v );
                 }
             }
         }
 
         size_t last_index = indices.size() - 1;
+
         SceneObject theobject;
-        theobject.name = model->shapes[shape].name;
-        theobject.first_index = first_index;
-        theobject.num_indices = last_index - first_index + 1;
+        theobject.name           = model->shapes[shape].name;
+        theobject.first_index    = first_index;
+        theobject.num_indices    = last_index - first_index + 1;
         theobject.rendering_mode = GL_TRIANGLES;
         theobject.vertex_array_object_id = vertex_array_object_id;
+
+        theobject.bbox_min = bbox_min;
+        theobject.bbox_max = bbox_max;
+
         m_virtualScene[model->shapes[shape].name] = theobject;
     }
 
@@ -760,12 +869,12 @@ void Renderer::buildTrianglesFromObj(ObjModel* model)
     glBufferData(GL_ARRAY_BUFFER, model_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
     glBufferSubData(GL_ARRAY_BUFFER, 0, model_coefficients.size() * sizeof(float), model_coefficients.data());
     GLuint location = 0;
-    GLint number_of_dimensions = 4;
+    GLint  number_of_dimensions = 4;
     glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(location);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    if (!normal_coefficients.empty())
+    if ( !normal_coefficients.empty() )
     {
         GLuint VBO_normal_coefficients_id;
         glGenBuffers(1, &VBO_normal_coefficients_id);
@@ -779,7 +888,7 @@ void Renderer::buildTrianglesFromObj(ObjModel* model)
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-    if (!texture_coefficients.empty())
+    if ( !texture_coefficients.empty() )
     {
         GLuint VBO_texture_coefficients_id;
         glGenBuffers(1, &VBO_texture_coefficients_id);
@@ -792,7 +901,6 @@ void Renderer::buildTrianglesFromObj(ObjModel* model)
         glEnableVertexAttribArray(location);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
-
     GLuint indices_id;
     glGenBuffers(1, &indices_id);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
@@ -804,6 +912,10 @@ void Renderer::buildTrianglesFromObj(ObjModel* model)
 void Renderer::drawVirtualObject(const std::string& object_name)
 {
     glBindVertexArray(m_virtualScene[object_name].vertex_array_object_id);
+    glm::vec3 bbox_min = m_virtualScene[object_name].bbox_min;
+    glm::vec3 bbox_max = m_virtualScene[object_name].bbox_max;
+    glUniform4f(m_bbox_min_uniform, bbox_min.x, bbox_min.y, bbox_min.z, 1.0f);
+    glUniform4f(m_bbox_max_uniform, bbox_max.x, bbox_max.y, bbox_max.z, 1.0f);
     glDrawElements(
         m_virtualScene[object_name].rendering_mode,
         m_virtualScene[object_name].num_indices,

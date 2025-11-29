@@ -10,13 +10,22 @@ layout (location = 2) in vec2 texture_coefficients;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
-
+uniform int object_id;
 // Atributos de vértice que serão gerados como saída ("out") pelo Vertex Shader.
 // ** Estes serão interpolados pelo rasterizador! ** gerando, assim, valores
 // para cada fragmento, os quais serão recebidos como entrada pelo Fragment
 // Shader. Veja o arquivo "shader_fragment.glsl".
 out vec4 position_world;
+out vec4 position_model;
 out vec4 normal;
+out vec2 texcoords;
+out vec3 vertex_color;
+#define PLANE  2
+#define WALL_NORTH 3
+#define WALL_SOUTH 4
+#define WALL_EAST 5
+#define WALL_WEST 6
+#define CEILING 7
 
 void main()
 {
@@ -49,10 +58,35 @@ void main()
 
     // Posição do vértice atual no sistema de coordenadas global (World).
     position_world = model * model_coefficients;
-
+    position_model = model_coefficients;
     // Normal do vértice atual no sistema de coordenadas global (World).
     // Veja slides 123-151 do documento Aula_07_Transformacoes_Geometricas_3D.pdf.
     normal = inverse(transpose(model)) * normal_coefficients;
     normal.w = 0.0;
+    texcoords = texture_coefficients;
+    //Iluminação no vértice
+    vec3 Kd;
+    vec3 Ka;
+    if(object_id >= 2 && object_id<= 7){
+        vec4 n = normalize(normal);
+        vec4 l = normalize(vec4(1.0, 1.0, 0.5, 0.0));
+        float lambert = max(dot(n, l), 0.0);
+        vec3 I  = vec3(1.0,1.0,1.0);
+        vec3 Ia = vec3(0.2,0.2,0.2);
+        if(object_id == PLANE){
+            Kd = vec3(0.2,0.2,0.2);
+            Ka = vec3(0.1,0.1,0.1);
+        }
+        else{
+            Kd = vec3(0.3,0.3,0.3);
+            Ka = vec3(0.15,0.15,0.15);
+        }
+        vertex_color = Ia*Ka+lambert*I*Kd;
+    }
+    else
+    {
+        vertex_color = vec3(1.0,1.0,1.0);
+    }
+
 }
 
