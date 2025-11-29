@@ -25,6 +25,8 @@ uniform mat4 projection;
 #define CEILING 7
 #define DRAGON_BOSS 9
 #define VARINHA 10
+#define PROJECTILE 11
+#define PROJECTILE_TRAIL 12
 uniform int object_id;
 uniform vec4 bbox_min;
 uniform vec4 bbox_max;
@@ -188,6 +190,18 @@ void main()
         float lambert = max(0,dot(n,l));
         float phong = pow(max(0,dot(r,v)),q);
         color.rgb = dragon_tex*lambert*I+dragon_tex*Ia+phong*I;
+    }
+    else if(object_id == PROJECTILE)
+    {
+        vec3 purpleCore = vec3(0.6, 0.1, 0.9);
+        vec3 purpleGlow = vec3(0.8, 0.3, 1.0);
+        float fresnel = 1.0 - max(dot(n, v), 0.0);
+        fresnel = pow(fresnel, 2.0);
+        color.rgb = mix(purpleCore, purpleGlow, fresnel) * 1.8;
+    }
+    else if(object_id == PROJECTILE_TRAIL)
+    {
+        color.rgb = vec3(0.5, 0.1, 0.7) * 1.2;
     }
     else
     {

@@ -11,6 +11,7 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 #include <tiny_obj_loader.h>
+#include "Projectile.h"
 
 struct ObjModel
 {
@@ -44,9 +45,10 @@ public:
 
     bool init(GLFWwindow* window);
 
-    void renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive);
+    void renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive, const ProjectileManager* projectileManager = nullptr);
 
     void renderArena();
+    void renderProjectiles(const ProjectileManager& projectileManager);
     void renderPlayer(const Player& player);
     void renderEnemies(const EnemyManager& enemyManager, const glm::vec4& playerPosition);
     void renderDragonBoss(const Enemy& dragon, bool isAlive);
@@ -55,6 +57,10 @@ public:
     void renderMenu(int selectedDifficulty);
     void renderGameOver();
     void renderWin();
+    void renderCountdown(int countdownNumber);
+    void renderHitMarker();
+    void renderMuzzleFlash();
+    void renderDamageFlash(float intensity);
 
     void setProjection(const glm::mat4& projection);
     void setView(const glm::mat4& view);

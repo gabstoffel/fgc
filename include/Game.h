@@ -6,9 +6,11 @@
 #include "Player.h"
 #include "Enemy.h"
 #include "Renderer.h"
+#include "Projectile.h"
 
 enum class GameState {
     MENU,
+    COUNTDOWN,
     PLAYING,
     GAME_OVER,
     WIN
@@ -52,6 +54,8 @@ private:
 
     void handleDebugKillKey();
 
+    void handleProjectileCollisions();
+
     Player m_player;
     EnemyManager m_enemyManager;
     Renderer m_renderer;
@@ -64,8 +68,16 @@ private:
     int m_segundoAnterior;
 
     GameState m_gameState;
-    int m_difficulty;  
+    int m_difficulty;
     int m_enemyDamage;
+    float m_countdownTimer;
+
+    ProjectileManager m_projectileManager;
+
+    float m_hitMarkerTimer;
+    float m_muzzleFlashTimer;
+    static constexpr float HIT_MARKER_DURATION = 0.15f;
+    static constexpr float MUZZLE_FLASH_DURATION = 0.08f;
 };
 
 #endif 

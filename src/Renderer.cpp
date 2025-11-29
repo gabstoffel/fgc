@@ -159,7 +159,7 @@ void Renderer::setView(const glm::mat4& view)
     glUniformMatrix4fv(m_viewUniform, 1, GL_FALSE, glm::value_ptr(view));
 }
 
-void Renderer::renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive)
+void Renderer::renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive, const ProjectileManager* projectileManager)
 {
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -175,6 +175,11 @@ void Renderer::renderScene(const Player& player, const EnemyManager& enemyManage
     renderPlayer(player);
     renderEnemies(enemyManager, player.getPosition());
     renderDragonBoss(dragonBoss, dragonBossAlive);
+
+    if (projectileManager != nullptr)
+    {
+        renderProjectiles(*projectileManager);
+    }
 }
 
 void Renderer::renderArena()
@@ -294,6 +299,82 @@ void Renderer::renderDragonBoss(const Enemy& dragon, bool isAlive)
     PopMatrix(model);
 }
 
+void Renderer::renderProjectiles(const ProjectileManager& projectileManager)
+{
+    const std::vector<Projectile>& projectiles = projectileManager.getProjectiles();
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    glDepthMask(GL_FALSE);
+
+    for (size_t i = 0; i < projectiles.size(); i++)
+    {
+        if (!projectiles[i].active)
+            continue;
+
+        const Projectile& proj = projectiles[i];
+
+        glm::mat4 model = Matrix_Identity();
+        model = model * Matrix_Translate(proj.position.x, proj.position.y, proj.position.z)
+                      * Matrix_Scale(0.05f, 0.05f, 0.05f);
+
+        glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(m_objectIdUniform, 11); 
+
+        glBindVertexArray(m_vertexArrayObjectID);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+
+        for (int t = 0; t < Projectile::TRAIL_LENGTH; t++)
+        {
+            int idx = (proj.trailIndex - 1 - t + Projectile::TRAIL_LENGTH) % Projectile::TRAIL_LENGTH;
+            glm::vec3 trailPos = proj.trailPositions[idx];
+
+            float scale = 0.03f * (1.0f - (float)t / Projectile::TRAIL_LENGTH);
+            if (scale < 0.01f) continue;
+
+            model = Matrix_Identity();
+            model = model * Matrix_Translate(trailPos.x, trailPos.y, trailPos.z)
+                          * Matrix_Scale(scale, scale, scale);
+
+            glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+            glUniform1i(m_objectIdUniform, 12); 
+
+            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+        }
+    }
+
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+}
+
+void Renderer::renderHitMarker()
+{
+    if (m_window == nullptr)
+        return;
+
+    TextRendering_PrintString(m_window, "X", -0.02f, -0.02f, 2.0f);
+}
+
+void Renderer::renderMuzzleFlash()
+{
+    if (m_window == nullptr)
+        return;
+
+    TextRendering_PrintString(m_window, "*", 0.05f, -0.05f, 3.0f);
+}
+
+void Renderer::renderDamageFlash(float intensity)
+{
+    if (m_window == nullptr || intensity <= 0.0f)
+        return;
+
+    if (intensity > 0.5f)
+    {
+        TextRendering_PrintString(m_window, "!", -0.95f, 0.0f, 3.0f);
+        TextRendering_PrintString(m_window, "!", 0.90f, 0.0f, 3.0f);
+    }
+}
+
 void Renderer::renderCrosshair(bool isFirstPerson)
 {
     if (!isFirstPerson || m_window == nullptr)
@@ -364,6 +445,23 @@ void Renderer::renderWin()
     TextRendering_PrintString(m_window, "Voce derrotou o Dragao!", -0.35f, 0.0f, 1.5f);
     TextRendering_PrintString(m_window, "Pressione R para jogar novamente", -0.45f, -0.2f, 1.3f);
     TextRendering_PrintString(m_window, "Pressione M para o menu", -0.40f, -0.35f, 1.3f);
+}
+
+void Renderer::renderCountdown(int countdownNumber)
+{
+    if (m_window == nullptr)
+        return;
+
+    char buffer[8];
+    if (countdownNumber > 0)
+    {
+        snprintf(buffer, 8, "%d", countdownNumber);
+        TextRendering_PrintString(m_window, buffer, -0.05f, 0.0f, 5.0f);
+    }
+    else
+    {
+        TextRendering_PrintString(m_window, "GO!", -0.12f, 0.0f, 4.0f);
+    }
 }
 
 GLuint Renderer::buildGeometry()

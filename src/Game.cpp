@@ -17,6 +17,9 @@ Game::Game()
     , m_gameState(GameState::MENU)
     , m_difficulty(1)
     , m_enemyDamage(10)
+    , m_countdownTimer(0.0f)
+    , m_hitMarkerTimer(0.0f)
+    , m_muzzleFlashTimer(0.0f)
 {
 }
 
@@ -92,6 +95,19 @@ void Game::run()
 
 void Game::update(float deltaTime)
 {
+    if (m_gameState == GameState::COUNTDOWN)
+    {
+        m_countdownTimer -= deltaTime;
+        if (m_countdownTimer <= 0.0f)
+        {
+            m_gameState = GameState::PLAYING;
+            if (!m_player.isFirstPerson())
+                m_player.toggleCamera();
+            glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        }
+        return;
+    }
+
     if (m_gameState != GameState::PLAYING)
         return;
 
@@ -104,6 +120,15 @@ void Game::update(float deltaTime)
     handleShooting();
     handleDebugKillKey();
     m_enemyManager.removeDeadEnemies();
+
+    m_projectileManager.update(deltaTime);
+    handleProjectileCollisions();
+    m_projectileManager.removeInactive();
+
+    if (m_hitMarkerTimer > 0.0f)
+        m_hitMarkerTimer -= deltaTime;
+    if (m_muzzleFlashTimer > 0.0f)
+        m_muzzleFlashTimer -= deltaTime;
 
     if (m_player.isDead())
     {
@@ -126,6 +151,36 @@ void Game::render()
         m_renderer.renderMenu(m_difficulty);
         break;
 
+    case GameState::COUNTDOWN:
+        {
+            float angle = (4.0f - m_countdownTimer) * 0.5f; 
+            float camHeight = 2.5f;
+            float camDist = 2.0f;
+            glm::vec4 camera_position = glm::vec4(
+                sin(angle) * camDist,
+                camHeight,
+                cos(angle) * camDist,
+                1.0f
+            );
+            glm::vec4 camera_lookat = glm::vec4(0.0f, 0.3f, 0.0f, 1.0f);
+            glm::vec4 camera_view = camera_lookat - camera_position;
+            glm::vec4 camera_up = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+            glm::mat4 view = Matrix_Camera_View(camera_position, camera_view, camera_up);
+
+            float nearplane = -0.1f;
+            float farplane = -5000.0f;
+            float field_of_view = 3.141592f / 3.0f;
+            glm::mat4 projection = Matrix_Perspective(field_of_view, Input::getScreenRatio(), nearplane, farplane);
+
+            m_renderer.setView(view);
+            m_renderer.setProjection(projection);
+            m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
+
+            int countdownNum = (int)ceilf(m_countdownTimer);
+            m_renderer.renderCountdown(countdownNum);
+        }
+        break;
+
     case GameState::PLAYING:
         {
             glm::mat4 view = m_player.getCameraView();
@@ -137,9 +192,14 @@ void Game::render()
 
             m_renderer.setView(view);
             m_renderer.setProjection(projection);
-            m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
+            m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive, &m_projectileManager);
             m_renderer.renderHUD(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
             m_renderer.renderCrosshair(m_player.isFirstPerson());
+
+            if (m_hitMarkerTimer > 0.0f)
+                m_renderer.renderHitMarker();
+            if (m_muzzleFlashTimer > 0.0f)
+                m_renderer.renderMuzzleFlash();
         }
         break;
 
@@ -206,102 +266,95 @@ void Game::handleShooting()
     if (!Input::isShootingRequested())
         return;
 
-    printf("\n=== SHOOTING ===\n");
-    printf("Camera mode: %s\n", m_player.isFirstPerson() ? "First Person" : "Third Person");
+    if (!m_player.isFirstPerson())
+        return; 
 
-    glm::vec4 ray_origin = m_player.getCameraPosition();
-    glm::vec4 ray_direction = m_player.getCameraDirection();
+    glm::vec4 origin = m_player.getCameraPosition();
+    glm::vec4 dir = m_player.getCameraDirection();
 
-    glm::vec3 ray_origin_3d = glm::vec3(ray_origin.x, ray_origin.y, ray_origin.z);
-    glm::vec3 ray_dir_3d = glm::vec3(ray_direction.x, ray_direction.y, ray_direction.z);
-
-    float dir_length = sqrt(ray_dir_3d.x * ray_dir_3d.x +
-                           ray_dir_3d.y * ray_dir_3d.y +
-                           ray_dir_3d.z * ray_dir_3d.z);
-    if (dir_length > 0.0001f)
+    glm::vec3 dir3 = glm::vec3(dir.x, dir.y, dir.z);
+    float len = sqrt(dir3.x * dir3.x + dir3.y * dir3.y + dir3.z * dir3.z);
+    if (len > 0.0001f)
     {
-        ray_dir_3d.x /= dir_length;
-        ray_dir_3d.y /= dir_length;
-        ray_dir_3d.z /= dir_length;
+        dir3.x /= len;
+        dir3.y /= len;
+        dir3.z /= len;
     }
 
-    printf("Ray origin: (%.2f, %.2f, %.2f)\n", ray_origin_3d.x, ray_origin_3d.y, ray_origin_3d.z);
-    printf("Ray direction: (%.2f, %.2f, %.2f)\n", ray_dir_3d.x, ray_dir_3d.y, ray_dir_3d.z);
+    glm::vec3 spawnPos = glm::vec3(origin.x, origin.y, origin.z) + dir3 * 0.3f;
+    m_projectileManager.spawnProjectile(spawnPos, dir3);
 
+    m_muzzleFlashTimer = MUZZLE_FLASH_DURATION;
+
+    printf("Projectile spawned at (%.2f, %.2f, %.2f)\n", spawnPos.x, spawnPos.y, spawnPos.z);
+}
+
+void Game::handleProjectileCollisions()
+{
+    std::vector<Projectile>& projectiles = m_projectileManager.getProjectiles();
     std::vector<Enemy>& enemies = const_cast<std::vector<Enemy>&>(m_enemyManager.getEnemies());
-    printf("Checking %zu enemies...\n", enemies.size());
 
-    bool hit_any = false;
-    for (size_t i = 0; i < enemies.size(); i++)
+    float enemyRadius = 0.2f;
+    float bossRadius = 0.3f;
+    float projectileRadius = 0.05f;
+
+    for (size_t p = 0; p < projectiles.size(); p++)
     {
-        glm::vec4 enemy_pos = enemies[i].getPosition();
-        glm::vec3 enemy_center = glm::vec3(enemy_pos.x, enemy_pos.y, enemy_pos.z);
-        float enemy_radius = 0.2f;
-        float t;
+        if (!projectiles[p].active)
+            continue;
 
-        float dx = enemy_center.x - ray_origin_3d.x;
-        float dy = enemy_center.y - ray_origin_3d.y;
-        float dz = enemy_center.z - ray_origin_3d.z;
-        float distance_to_enemy = sqrt(dx*dx + dy*dy + dz*dz);
+        glm::vec3 projPos = projectiles[p].position;
 
-        printf("  Enemy %zu at (%.2f, %.2f, %.2f), distance: %.2f",
-               i, enemy_pos.x, enemy_pos.y, enemy_pos.z, distance_to_enemy);
-
-        if (testRaySphere(ray_origin_3d, ray_dir_3d, enemy_center, enemy_radius, t))
+        for (size_t e = 0; e < enemies.size(); e++)
         {
-            enemies[i].takeDamage(100);
-            printf(" -> HIT! (t=%.2f)\n", t);
-            hit_any = true;
-            break;
-        }
-        else
-        {
-            printf(" -> miss\n");
-        }
-    }
+            glm::vec4 enemyPos4 = enemies[e].getPosition();
+            glm::vec3 enemyPos = glm::vec3(enemyPos4.x, enemyPos4.y, enemyPos4.z);
 
-    if (!hit_any && m_dragonBossAlive)
-    {
-        glm::vec4 dragon_pos = m_dragonBoss.getPosition();
-        glm::vec3 dragon_center = glm::vec3(dragon_pos.x, dragon_pos.y + 0.15f, dragon_pos.z);
-        float dragon_radius = 0.3f; 
-        float t;
+            float dx = projPos.x - enemyPos.x;
+            float dy = projPos.y - enemyPos.y;
+            float dz = projPos.z - enemyPos.z;
+            float distSq = dx * dx + dy * dy + dz * dz;
+            float combinedRadius = enemyRadius + projectileRadius;
 
-        float dx = dragon_center.x - ray_origin_3d.x;
-        float dy = dragon_center.y - ray_origin_3d.y;
-        float dz = dragon_center.z - ray_origin_3d.z;
-        float distance_to_dragon = sqrt(dx*dx + dy*dy + dz*dz);
-
-        printf("  Dragon Boss at (%.2f, %.2f, %.2f), distance: %.2f",
-               dragon_pos.x, dragon_pos.y + 0.15f, dragon_pos.z, distance_to_dragon);
-
-        if (testRaySphere(ray_origin_3d, ray_dir_3d, dragon_center, dragon_radius, t))
-        {
-            m_dragonBoss.takeDamage(100);
-            printf(" -> HIT DRAGON BOSS! (t=%.2f) Health: %d\n", t, m_dragonBoss.getVida());
-            hit_any = true;
-
-            if (m_dragonBoss.isDead())
+            if (distSq < combinedRadius * combinedRadius)
             {
-                m_dragonBossAlive = false;
-                printf("*** DRAGON BOSS DEFEATED! ***\n");
+                enemies[e].takeDamage(100);
+                projectiles[p].active = false;
+                m_hitMarkerTimer = HIT_MARKER_DURATION;
+                printf("Projectile hit enemy! Enemy HP: %d\n", enemies[e].getVida());
+                break;
             }
         }
-        else
+
+        if (!projectiles[p].active)
+            continue;
+
+        if (m_dragonBossAlive)
         {
-            printf(" -> miss\n");
+            glm::vec4 dragonPos4 = m_dragonBoss.getPosition();
+            glm::vec3 dragonPos = glm::vec3(dragonPos4.x, dragonPos4.y + 0.15f, dragonPos4.z);
+
+            float dx = projPos.x - dragonPos.x;
+            float dy = projPos.y - dragonPos.y;
+            float dz = projPos.z - dragonPos.z;
+            float distSq = dx * dx + dy * dy + dz * dz;
+            float combinedRadius = bossRadius + projectileRadius;
+
+            if (distSq < combinedRadius * combinedRadius)
+            {
+                m_dragonBoss.takeDamage(100);
+                projectiles[p].active = false;
+                m_hitMarkerTimer = HIT_MARKER_DURATION;
+                printf("Projectile hit Dragon Boss! HP: %d\n", m_dragonBoss.getVida());
+
+                if (m_dragonBoss.isDead())
+                {
+                    m_dragonBossAlive = false;
+                    printf("*** DRAGON BOSS DEFEATED! ***\n");
+                }
+            }
         }
     }
-
-    if (!hit_any && enemies.size() > 0)
-    {
-        printf("MISS! No enemies hit.\n");
-    }
-    else if (enemies.size() == 0 && !m_dragonBossAlive)
-    {
-        printf("No enemies to shoot!\n");
-    }
-    printf("================\n\n");
 }
 
 void Game::handleDebugKillKey()
@@ -387,16 +440,23 @@ void Game::setDifficulty(int difficulty)
 
 void Game::startGame()
 {
-    m_gameState = GameState::PLAYING;
+    m_gameState = GameState::COUNTDOWN;
+    m_countdownTimer = 4.0f;
     m_lastFrameTime = glfwGetTime();
+
+    if (m_player.isFirstPerson())
+        m_player.toggleCamera();
 }
 
 void Game::resetGame()
 {
     m_player.reset();
     m_enemyManager.clearEnemies();
+    m_projectileManager.clear();
     m_dragonBoss = Enemy(0.0f, 0.7f, 500);
     m_dragonBossAlive = true;
+    m_hitMarkerTimer = 0.0f;
+    m_muzzleFlashTimer = 0.0f;
     setDifficulty(m_difficulty);
     startGame();
 }
@@ -406,6 +466,9 @@ void Game::returnToMenu()
     m_gameState = GameState::MENU;
     m_player.reset();
     m_enemyManager.clearEnemies();
+    m_projectileManager.clear();
     m_dragonBoss = Enemy(0.0f, 0.7f, 500);
     m_dragonBossAlive = true;
+    m_hitMarkerTimer = 0.0f;
+    m_muzzleFlashTimer = 0.0f;
 }
