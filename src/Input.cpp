@@ -31,7 +31,8 @@ void Input::mouseButtonCallback(GLFWwindow* window, int button, int action, int 
         glfwGetCursorPos(window, &s_lastCursorPosX, &s_lastCursorPosY);
         s_leftMouseButtonPressed = true;
 
-        if (s_player != nullptr && s_player->isFirstPerson())
+        if (s_player != nullptr && s_player->isFirstPerson() &&
+            s_game != nullptr && s_game->getGameState() == GameState::PLAYING)
             s_shootRequested = true;
     }
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
@@ -97,11 +98,63 @@ void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, i
         (key == GLFW_KEY_ESCAPE) ? "true" : "false",
         (key == GLFW_KEY_K) ? "true" : "false");
 
+    if (s_game == nullptr)
+        return;
+
+    GameState gameState = s_game->getGameState();
+
+    if (gameState == GameState::MENU && action == GLFW_PRESS)
+    {
+        if (key == GLFW_KEY_1)
+        {
+            s_game->setDifficulty(0);
+            s_game->startGame();
+            return;
+        }
+        else if (key == GLFW_KEY_2)
+        {
+            s_game->setDifficulty(1);
+            s_game->startGame();
+            return;
+        }
+        else if (key == GLFW_KEY_3)
+        {
+            s_game->setDifficulty(2);
+            s_game->startGame();
+            return;
+        }
+    }
+
+    if ((gameState == GameState::GAME_OVER || gameState == GameState::WIN) && action == GLFW_PRESS)
+    {
+        if (key == GLFW_KEY_R)
+        {
+            s_game->resetGame();
+            return;
+        }
+        else if (key == GLFW_KEY_M)
+        {
+            s_game->returnToMenu();
+            return;
+        }
+    }
+
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
-        glfwSetWindowShouldClose(window, GL_TRUE);
+        if (gameState == GameState::PLAYING)
+        {
+            s_game->returnToMenu();
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+        else
+        {
+            glfwSetWindowShouldClose(window, GL_TRUE);
+        }
         return;
     }
+
+    if (gameState != GameState::PLAYING)
+        return;
 
     if (key == GLFW_KEY_F && action == GLFW_PRESS)
     {

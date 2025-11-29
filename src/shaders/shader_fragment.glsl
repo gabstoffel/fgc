@@ -69,10 +69,10 @@ void main()
     vec4 origin = vec4(0.0, 0.0, 0.0, 1.0);
     vec4 camera_position = inverse(view) * origin;
     // Espectro da fonte de iluminação
-    vec3 I = vec3(1.0,1.0,1.0);
+    vec3 I = vec3(1.2,1.2,1.2);
 
     // Espectro da luz ambiente
-    vec3 Ia = vec3(0.2,0.2,0.2);
+    vec3 Ia = vec3(0.35,0.35,0.35);
     // O fragmento atual é coberto por um ponto que percente à superfície de um
     // dos objetos virtuais da cena. Este ponto, p, possui uma posição no
     // sistema de coordenadas global (World coordinates). Esta posição é obtida

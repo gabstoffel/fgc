@@ -91,7 +91,7 @@ bool Renderer::init(GLFWwindow* window)
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage0"), 0);
     //Parede
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage1"), 1);
-    //Chão
+    //Chï¿½o
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage2"), 2);
     //Telhado
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage3"), 3);
@@ -295,6 +295,71 @@ void Renderer::renderCrosshair(bool isFirstPerson)
     if (!isFirstPerson || m_window == nullptr)
         return;
 
+    TextRendering_PrintString(m_window, "+", -0.02f, -0.02f, 2.5f);
+}
+
+void Renderer::renderHUD(const Player& player, const EnemyManager& enemies, const Enemy& boss, bool bossAlive)
+{
+    if (m_window == nullptr)
+        return;
+
+    char buffer[64];
+
+    snprintf(buffer, 64, "HP: %d/%d", player.getVida(), player.getMaxVida());
+    TextRendering_PrintString(m_window, buffer, -0.95f, 0.9f, 1.5f);
+
+    snprintf(buffer, 64, "Inimigos: %zu", enemies.getEnemyCount());
+    TextRendering_PrintString(m_window, buffer, -0.95f, 0.8f, 1.5f);
+
+    if (bossAlive)
+    {
+        snprintf(buffer, 64, "BOSS: %d", boss.getVida());
+        TextRendering_PrintString(m_window, buffer, -0.15f, 0.9f, 1.5f);
+    }
+}
+
+void Renderer::renderMenu(int selectedDifficulty)
+{
+    if (m_window == nullptr)
+        return;
+
+    glClearColor(0.05f, 0.05f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    TextRendering_PrintString(m_window, "=== ARENA SURVIVAL ===", -0.45f, 0.5f, 2.0f);
+    TextRendering_PrintString(m_window, "Selecione a Dificuldade:", -0.35f, 0.2f, 1.5f);
+    TextRendering_PrintString(m_window, "[1] Facil", -0.15f, 0.0f, 1.5f);
+    TextRendering_PrintString(m_window, "[2] Normal", -0.15f, -0.1f, 1.5f);
+    TextRendering_PrintString(m_window, "[3] Dificil", -0.15f, -0.2f, 1.5f);
+    TextRendering_PrintString(m_window, "Pressione 1, 2 ou 3 para comecar", -0.45f, -0.5f, 1.2f);
+}
+
+void Renderer::renderGameOver()
+{
+    if (m_window == nullptr)
+        return;
+
+    glClearColor(0.2f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    TextRendering_PrintString(m_window, "=== GAME OVER ===", -0.35f, 0.3f, 2.5f);
+    TextRendering_PrintString(m_window, "Voce foi derrotado!", -0.30f, 0.0f, 1.5f);
+    TextRendering_PrintString(m_window, "Pressione R para reiniciar", -0.40f, -0.2f, 1.3f);
+    TextRendering_PrintString(m_window, "Pressione M para o menu", -0.40f, -0.35f, 1.3f);
+}
+
+void Renderer::renderWin()
+{
+    if (m_window == nullptr)
+        return;
+
+    glClearColor(0.0f, 0.15f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    TextRendering_PrintString(m_window, "=== VITORIA ===", -0.30f, 0.3f, 2.5f);
+    TextRendering_PrintString(m_window, "Voce derrotou o Dragao!", -0.35f, 0.0f, 1.5f);
+    TextRendering_PrintString(m_window, "Pressione R para jogar novamente", -0.45f, -0.2f, 1.3f);
+    TextRendering_PrintString(m_window, "Pressione M para o menu", -0.40f, -0.35f, 1.3f);
 }
 
 GLuint Renderer::buildGeometry()
@@ -520,7 +585,7 @@ void Renderer::LoadTextureImage(const char* filename)
     glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // Parâmetros de amostragem da textura.
+    // Parï¿½metros de amostragem da textura.
     glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 

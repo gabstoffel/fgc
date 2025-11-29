@@ -142,9 +142,10 @@ void Enemy::takeDamage(int damage)
 }
 
 EnemyManager::EnemyManager()
-    : m_previousSecond(0)
+    : m_previousSecond(-1)
     , m_maxEnemies(2)
     , m_spawnInterval(5)
+    , m_enemySpeed(0.25f)
 {
 }
 

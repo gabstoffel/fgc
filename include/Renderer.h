@@ -51,6 +51,10 @@ public:
     void renderEnemies(const EnemyManager& enemyManager, const glm::vec4& playerPosition);
     void renderDragonBoss(const Enemy& dragon, bool isAlive);
     void renderCrosshair(bool isFirstPerson);
+    void renderHUD(const Player& player, const EnemyManager& enemies, const Enemy& boss, bool bossAlive);
+    void renderMenu(int selectedDifficulty);
+    void renderGameOver();
+    void renderWin();
 
     void setProjection(const glm::mat4& projection);
     void setView(const glm::mat4& view);

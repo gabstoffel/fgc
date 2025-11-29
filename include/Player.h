@@ -29,6 +29,13 @@ public:
 
     void updatePositionAfterCollision(const glm::vec3& newPosition);
 
+    int getVida() const { return m_vida; }
+    int getMaxVida() const { return m_maxVida; }
+    void takeDamage(int damage);
+    bool isDead() const { return m_vida <= 0; }
+    void setVida(int vida, int maxVida);
+    void reset();
+
 private:
     glm::vec4 m_position;
 
@@ -46,6 +53,11 @@ private:
 
     double m_lastCursorPosX;
     double m_lastCursorPosY;
+
+    int m_vida;
+    int m_maxVida;
+    float m_damageCooldown;
+    float m_damageCooldownTimer;
 };
 
 #endif 

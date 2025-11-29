@@ -58,11 +58,16 @@ public:
     const std::vector<Enemy>& getEnemies() const { return m_enemies; }
     size_t getEnemyCount() const { return m_enemies.size(); }
 
+    void setEnemySpeed(float speed) { m_enemySpeed = speed; }
+    void setMaxEnemies(int maxEnemies) { m_maxEnemies = maxEnemies; }
+    void clearEnemies() { m_enemies.clear(); m_previousSecond = -1; }
+
 private:
     std::vector<Enemy> m_enemies;
-    int m_previousSecond; 
-    int m_maxEnemies;     
-    int m_spawnInterval;  
+    int m_previousSecond;
+    int m_maxEnemies;
+    int m_spawnInterval;
+    float m_enemySpeed;
 };
 
 #endif 

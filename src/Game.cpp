@@ -9,11 +9,14 @@
 #include <glm/gtc/type_ptr.hpp>
 
 Game::Game()
-    : m_dragonBoss(0.0f, 0.7f, 500)  
+    : m_dragonBoss(0.0f, 0.7f, 500)
     , m_dragonBossAlive(true)
     , m_window(nullptr)
     , m_lastFrameTime(0.0)
     , m_segundoAnterior(0)
+    , m_gameState(GameState::MENU)
+    , m_difficulty(1)
+    , m_enemyDamage(10)
 {
 }
 
@@ -89,6 +92,9 @@ void Game::run()
 
 void Game::update(float deltaTime)
 {
+    if (m_gameState != GameState::PLAYING)
+        return;
+
     int segundos = (int)glfwGetTime();
 
     m_enemyManager.trySpawnEnemy(segundos, m_player.getPosition());
@@ -98,20 +104,53 @@ void Game::update(float deltaTime)
     handleShooting();
     handleDebugKillKey();
     m_enemyManager.removeDeadEnemies();
+
+    if (m_player.isDead())
+    {
+        m_gameState = GameState::GAME_OVER;
+        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+
+    if (!m_dragonBossAlive)
+    {
+        m_gameState = GameState::WIN;
+        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
 }
 
 void Game::render()
 {
-    glm::mat4 view = m_player.getCameraView();
+    switch (m_gameState)
+    {
+    case GameState::MENU:
+        m_renderer.renderMenu(m_difficulty);
+        break;
 
-    float nearplane = -0.1f;
-    float farplane  = -5000.0f;
-    float field_of_view = 3.141592f / 3.0f;
-    glm::mat4 projection = Matrix_Perspective(field_of_view, Input::getScreenRatio(), nearplane, farplane);
+    case GameState::PLAYING:
+        {
+            glm::mat4 view = m_player.getCameraView();
 
-    m_renderer.setView(view);
-    m_renderer.setProjection(projection);
-    m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
+            float nearplane = -0.1f;
+            float farplane  = -5000.0f;
+            float field_of_view = 3.141592f / 3.0f;
+            glm::mat4 projection = Matrix_Perspective(field_of_view, Input::getScreenRatio(), nearplane, farplane);
+
+            m_renderer.setView(view);
+            m_renderer.setProjection(projection);
+            m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
+            m_renderer.renderHUD(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
+            m_renderer.renderCrosshair(m_player.isFirstPerson());
+        }
+        break;
+
+    case GameState::GAME_OVER:
+        m_renderer.renderGameOver();
+        break;
+
+    case GameState::WIN:
+        m_renderer.renderWin();
+        break;
+    }
 }
 
 void Game::handleCollisions()
@@ -128,6 +167,38 @@ void Game::handleCollisions()
     clampPositionToBox(player_pos_3d, arena_min, arena_max);
 
     m_player.updatePositionAfterCollision(player_pos_3d);
+
+    const std::vector<Enemy>& enemies = m_enemyManager.getEnemies();
+    float collisionRadius = 0.25f;
+    float collisionRadiusSq = collisionRadius * collisionRadius;
+
+    for (const Enemy& enemy : enemies)
+    {
+        glm::vec4 enemyPos = enemy.getPosition();
+        float dx = player_pos_3d.x - enemyPos.x;
+        float dz = player_pos_3d.z - enemyPos.z;
+        float distSq = dx * dx + dz * dz;
+
+        if (distSq < collisionRadiusSq)
+        {
+            m_player.takeDamage(m_enemyDamage);
+            break;
+        }
+    }
+
+    if (m_dragonBossAlive)
+    {
+        glm::vec4 dragonPos = m_dragonBoss.getPosition();
+        float dx = player_pos_3d.x - dragonPos.x;
+        float dz = player_pos_3d.z - dragonPos.z;
+        float distSq = dx * dx + dz * dz;
+        float bossCollisionRadius = 0.35f;
+
+        if (distSq < bossCollisionRadius * bossCollisionRadius)
+        {
+            m_player.takeDamage(m_enemyDamage * 2);
+        }
+    }
 }
 
 void Game::handleShooting()
@@ -285,4 +356,56 @@ void Game::setShouldClose(bool shouldClose)
     {
         glfwSetWindowShouldClose(m_window, shouldClose ? GL_TRUE : GL_FALSE);
     }
+}
+
+void Game::setDifficulty(int difficulty)
+{
+    m_difficulty = difficulty;
+
+    switch (difficulty)
+    {
+    case 0: 
+        m_player.setVida(150, 150);
+        m_enemyManager.setEnemySpeed(0.15f);
+        m_enemyManager.setMaxEnemies(1);
+        m_enemyDamage = 5;
+        break;
+    case 1: 
+        m_player.setVida(100, 100);
+        m_enemyManager.setEnemySpeed(0.25f);
+        m_enemyManager.setMaxEnemies(2);
+        m_enemyDamage = 10;
+        break;
+    case 2: 
+        m_player.setVida(75, 75);
+        m_enemyManager.setEnemySpeed(0.35f);
+        m_enemyManager.setMaxEnemies(3);
+        m_enemyDamage = 20;
+        break;
+    }
+}
+
+void Game::startGame()
+{
+    m_gameState = GameState::PLAYING;
+    m_lastFrameTime = glfwGetTime();
+}
+
+void Game::resetGame()
+{
+    m_player.reset();
+    m_enemyManager.clearEnemies();
+    m_dragonBoss = Enemy(0.0f, 0.7f, 500);
+    m_dragonBossAlive = true;
+    setDifficulty(m_difficulty);
+    startGame();
+}
+
+void Game::returnToMenu()
+{
+    m_gameState = GameState::MENU;
+    m_player.reset();
+    m_enemyManager.clearEnemies();
+    m_dragonBoss = Enemy(0.0f, 0.7f, 500);
+    m_dragonBossAlive = true;
 }

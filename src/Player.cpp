@@ -4,9 +4,9 @@
 #include <cmath>
 
 Player::Player()
-    : m_position(0.0f, 0.101f, -0.7f, 1.0f) 
+    : m_position(0.0f, 0.101f, -0.7f, 1.0f)
     , m_firstPerson(false)
-    , m_cameraTheta(0.0f)  
+    , m_cameraTheta(0.0f)
     , m_cameraPhi(0.5f)
     , m_cameraDistance(2.0f)
     , m_cameraYaw(-1.57079632f)
@@ -15,6 +15,10 @@ Player::Player()
     , m_movementAngle(0.0f)
     , m_lastCursorPosX(0.0)
     , m_lastCursorPosY(0.0)
+    , m_vida(100)
+    , m_maxVida(100)
+    , m_damageCooldown(1.0f)
+    , m_damageCooldownTimer(0.0f)
 {
 }
 
@@ -24,6 +28,9 @@ Player::~Player()
 
 void Player::update(GLFWwindow* window, float deltaTime)
 {
+    if (m_damageCooldownTimer > 0.0f)
+        m_damageCooldownTimer -= deltaTime;
+
     static int frame_count = 0;
     bool should_log = (frame_count++ % 60 == 0);
 
@@ -251,4 +258,35 @@ glm::vec4 Player::getCameraPosition() const
         float x = r * cos(m_cameraPhi) * sin(m_cameraTheta);
         return m_position + glm::vec4(x, y, z, 0.0f);
     }
+}
+
+void Player::takeDamage(int damage)
+{
+    if (m_damageCooldownTimer <= 0.0f)
+    {
+        m_vida -= damage;
+        if (m_vida < 0)
+            m_vida = 0;
+        m_damageCooldownTimer = m_damageCooldown;
+        printf("[Player] Took %d damage! HP: %d/%d\n", damage, m_vida, m_maxVida);
+    }
+}
+
+void Player::setVida(int vida, int maxVida)
+{
+    m_maxVida = maxVida;
+    m_vida = vida;
+}
+
+void Player::reset()
+{
+    m_position = glm::vec4(0.0f, 0.101f, -0.7f, 1.0f);
+    m_vida = m_maxVida;
+    m_damageCooldownTimer = 0.0f;
+    m_firstPerson = false;
+    m_cameraTheta = 0.0f;
+    m_cameraPhi = 0.5f;
+    m_cameraDistance = 2.0f;
+    m_cameraYaw = -1.57079632f;
+    m_cameraPitch = 0.0f;
 }

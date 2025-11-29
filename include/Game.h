@@ -7,6 +7,13 @@
 #include "Enemy.h"
 #include "Renderer.h"
 
+enum class GameState {
+    MENU,
+    PLAYING,
+    GAME_OVER,
+    WIN
+};
+
 class Game
 {
 public:
@@ -24,8 +31,15 @@ public:
     Renderer& getRenderer() { return m_renderer; }
     const Enemy& getDragonBoss() const { return m_dragonBoss; }
     bool isDragonBossAlive() const { return m_dragonBossAlive; }
+    EnemyManager& getEnemyManager() { return m_enemyManager; }
 
     void setShouldClose(bool shouldClose);
+
+    GameState getGameState() const { return m_gameState; }
+    void setDifficulty(int difficulty);
+    void startGame();
+    void resetGame();
+    void returnToMenu();
 
 private:
     void update(float deltaTime);
@@ -47,7 +61,11 @@ private:
     GLFWwindow* m_window;
 
     double m_lastFrameTime;
-    int m_segundoAnterior; 
+    int m_segundoAnterior;
+
+    GameState m_gameState;
+    int m_difficulty;  
+    int m_enemyDamage;
 };
 
 #endif 
