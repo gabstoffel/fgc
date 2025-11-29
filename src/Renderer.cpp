@@ -282,9 +282,7 @@ void Renderer::renderDragonBoss(const Enemy& dragon, bool isAlive, const glm::ve
 
     PushMatrix(model);
 
-    float dx = playerPosition.x - dragonPos.x;
-    float dz = playerPosition.z - dragonPos.z;
-    float angleToPlayer = atan2(dx, dz) + 3.14159f;  
+    float angleToPlayer = dragon.lookAt(playerPosition) + 1.5707963f;
 
     model = model * Matrix_Translate(dragonPos.x, dragonPos.y + 0.15f, dragonPos.z)
                   * Matrix_Rotate_Y(angleToPlayer)
