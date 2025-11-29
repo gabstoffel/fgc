@@ -165,6 +165,10 @@ void Renderer::renderScene(const Player& player, const EnemyManager& enemyManage
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(m_gpuProgramID);
+
+    glUniformMatrix4fv(m_viewUniform, 1, GL_FALSE, glm::value_ptr(m_currentView));
+    glUniformMatrix4fv(m_projectionUniform, 1, GL_FALSE, glm::value_ptr(m_currentProjection));
+
     glBindVertexArray(m_vertexArrayObjectID);
 
     renderArena();
