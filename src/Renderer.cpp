@@ -1,6 +1,7 @@
 #include "Renderer.h"
 #include "Player.h"
 #include "Enemy.h"
+#include "Game.h"
 #include "matrices.h"
 #include <fstream>
 #include <sstream>
@@ -299,6 +300,93 @@ void Renderer::renderDragonBoss(const Enemy& dragon, bool isAlive)
     PopMatrix(model);
 }
 
+void Renderer::renderPillars(const std::vector<Pillar>& pillars)
+{
+    glDisable(GL_CULL_FACE);
+
+    for (size_t i = 0; i < pillars.size(); i++)
+    {
+        const Pillar& pillar = pillars[i];
+
+        glm::mat4 model = Matrix_Identity();
+        float cubeSize = 0.2f;
+        float scaleX = (pillar.radius * 2.0f) / cubeSize; 
+        float scaleY = pillar.height / cubeSize;
+        float scaleZ = (pillar.radius * 2.0f) / cubeSize;
+
+        model = model * Matrix_Translate(pillar.position.x, pillar.position.y + pillar.height * 0.5f, pillar.position.z)
+                      * Matrix_Scale(scaleX, scaleY, scaleZ);
+
+        glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(m_objectIdUniform, 15); // PILAR
+
+        glBindVertexArray(m_vertexArrayObjectID);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+    }
+
+    glEnable(GL_CULL_FACE);
+}
+
+void Renderer::renderHealthPickups(const std::vector<HealthPickup>& pickups)
+{
+    static float rotation = 0.0f;
+    rotation += 0.02f;
+
+    for (size_t i = 0; i < pickups.size(); i++)
+    {
+        if (!pickups[i].active)
+            continue;
+
+        const HealthPickup& pickup = pickups[i];
+
+        glm::mat4 model = Matrix_Identity();
+        float bobHeight = sin(rotation * 2.0f + i) * 0.02f;
+        float pickupScale = 0.5f;
+        model = model * Matrix_Translate(pickup.position.x, pickup.position.y + 0.1f + bobHeight, pickup.position.z)
+                      * Matrix_Rotate_Y(rotation)
+                      * Matrix_Scale(pickupScale, pickupScale, pickupScale);
+
+        glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(m_objectIdUniform, 16); 
+
+        glBindVertexArray(m_vertexArrayObjectID);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+    }
+}
+
+void Renderer::renderTorches(const std::vector<Torch>& torches)
+{
+    static float flicker = 0.0f;
+    flicker += 0.15f;
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE); 
+    glDepthMask(GL_FALSE);
+
+    for (size_t i = 0; i < torches.size(); i++)
+    {
+        if (!torches[i].active)
+            continue;
+
+        const Torch& torch = torches[i];
+
+        float scale = 0.12f + 0.03f * sin(flicker + i * 1.5f);
+
+        glm::mat4 model = Matrix_Identity();
+        model = model * Matrix_Translate(torch.position.x, torch.position.y, torch.position.z)
+                      * Matrix_Scale(scale, scale * 1.5f, scale);  
+
+        glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(m_objectIdUniform, 17);  // TOCHA
+
+        glBindVertexArray(m_vertexArrayObjectID);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+    }
+
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+}
+
 void Renderer::renderProjectiles(const ProjectileManager& projectileManager)
 {
     const std::vector<Projectile>& projectiles = projectileManager.getProjectiles();
@@ -319,7 +407,7 @@ void Renderer::renderProjectiles(const ProjectileManager& projectileManager)
                       * Matrix_Scale(0.05f, 0.05f, 0.05f);
 
         glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform1i(m_objectIdUniform, 11); 
+        glUniform1i(m_objectIdUniform, proj.isEnemyProjectile ? 13 : 11);
 
         glBindVertexArray(m_vertexArrayObjectID);
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
@@ -343,7 +431,7 @@ void Renderer::renderProjectiles(const ProjectileManager& projectileManager)
                           * Matrix_Scale(scale, scale, scale);
 
             glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-            glUniform1i(m_objectIdUniform, 12);
+            glUniform1i(m_objectIdUniform, proj.isEnemyProjectile ? 14 : 12);
 
             glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
         }
@@ -478,32 +566,32 @@ GLuint Renderer::buildGeometry()
         -0.1f, -0.1f, -0.1f, 1.0f,
          0.1f, -0.1f, -0.1f, 1.0f,
          0.1f,  0.1f, -0.1f, 1.0f,
-         1000.0f, 0.0f, 1000.0f, 1.0f,
-         -1000.0f, 0.0f, 1000.0f, 1.0f,
-         1000.0f, 0.0f, -1000.0f, 1.0f,
-         -1000.0f, 0.0f, -1000.0f, 1.0f,
+         5.0f, 0.0f,  2.0f, 1.0f,
+        -5.0f, 0.0f,  2.0f, 1.0f,
+         5.0f, 0.0f, -2.0f, 1.0f,
+        -5.0f, 0.0f, -2.0f, 1.0f,
          0.0f,  0.0f,  0.0f, 1.0f,
          0.0f,  0.0f,  0.4f, 1.0f,
-         2000.0f, 3.0f, 2000.0f, 1.0f,
-         -2000.0f, 3.0f, 2000.0f, 1.0f,
-         2000.0f, 3.0f, -2000.0f, 1.0f,
-         -2000.0f, 3.0f, -2000.0f, 1.0f,
-          5.0f, 0.0f, -5.0f, 1.0f,
-         -5.0f, 0.0f, -5.0f, 1.0f,
-         -5.0f, 3.0f, -5.0f, 1.0f,
-          5.0f, 3.0f, -5.0f, 1.0f,
-         -5.0f, 0.0f,  5.0f, 1.0f,
-          5.0f, 0.0f,  5.0f, 1.0f,
-          5.0f, 3.0f,  5.0f, 1.0f,
-         -5.0f, 3.0f,  5.0f, 1.0f,
-          5.0f, 0.0f, -5.0f, 1.0f,
-          5.0f, 0.0f,  5.0f, 1.0f,
-          5.0f, 3.0f,  5.0f, 1.0f,
-          5.0f, 3.0f, -5.0f, 1.0f,
-         -5.0f, 0.0f,  5.0f, 1.0f,
-         -5.0f, 0.0f, -5.0f, 1.0f,
-         -5.0f, 3.0f, -5.0f, 1.0f,
-         -5.0f, 3.0f,  5.0f, 1.0f,
+         5.0f, 3.0f,  2.0f, 1.0f,
+        -5.0f, 3.0f,  2.0f, 1.0f,
+         5.0f, 3.0f, -2.0f, 1.0f,
+        -5.0f, 3.0f, -2.0f, 1.0f,
+         4.5f, 0.0f,  1.5f, 1.0f,
+        -4.5f, 0.0f,  1.5f, 1.0f,
+        -4.5f, 3.0f,  1.5f, 1.0f,
+         4.5f, 3.0f,  1.5f, 1.0f,
+        -4.5f, 0.0f, -1.5f, 1.0f,
+         4.5f, 0.0f, -1.5f, 1.0f,
+         4.5f, 3.0f, -1.5f, 1.0f,
+        -4.5f, 3.0f, -1.5f, 1.0f,
+         4.5f, 0.0f, -1.5f, 1.0f,
+         4.5f, 0.0f,  1.5f, 1.0f,
+         4.5f, 3.0f,  1.5f, 1.0f,
+         4.5f, 3.0f, -1.5f, 1.0f,
+        -4.5f, 0.0f,  1.5f, 1.0f,
+        -4.5f, 0.0f, -1.5f, 1.0f,
+        -4.5f, 3.0f, -1.5f, 1.0f,
+        -4.5f, 3.0f,  1.5f, 1.0f,
     };
 
     GLuint VBO_model_coefficients_id;
@@ -547,14 +635,14 @@ GLuint Renderer::buildGeometry()
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
-        1.0f, 0.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f, 0.0f,
         -1.0f, 0.0f, 0.0f, 0.0f,
         -1.0f, 0.0f, 0.0f, 0.0f,
         -1.0f, 0.0f, 0.0f, 0.0f,
         -1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
     };
 
     GLuint VBO_normal_coefficients_id;
@@ -581,8 +669,8 @@ GLuint Renderer::buildGeometry()
         4, 3, 7,
         4, 1, 0,
         1, 6, 2,
-        8, 9, 10,
-        9, 10, 11,
+        9, 8, 10,
+        11, 9, 10,
         12, 13,
         14, 15, 16,
         15, 17, 16,
@@ -687,8 +775,8 @@ void Renderer::LoadTextureImage(const char* filename)
     glGenSamplers(1, &sampler_id);
 
     // Veja slides 95-96 do documento Aula_20_Mapeamento_de_Texturas.pdf
-    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     // Par�metros de amostragem da textura.
     glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);

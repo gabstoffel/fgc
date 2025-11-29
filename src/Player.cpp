@@ -4,7 +4,7 @@
 #include <cmath>
 
 Player::Player()
-    : m_position(0.0f, 0.101f, -0.7f, 1.0f)
+    : m_position(3.5f, 0.101f, 0.0f, 1.0f) 
     , m_firstPerson(false)
     , m_cameraTheta(0.0f)
     , m_cameraPhi(0.5f)
@@ -272,6 +272,14 @@ void Player::takeDamage(int damage)
     }
 }
 
+void Player::heal(int amount)
+{
+    m_vida += amount;
+    if (m_vida > m_maxVida)
+        m_vida = m_maxVida;
+    printf("[Player] Healed %d HP! HP: %d/%d\n", amount, m_vida, m_maxVida);
+}
+
 void Player::setVida(int vida, int maxVida)
 {
     m_maxVida = maxVida;
@@ -280,7 +288,7 @@ void Player::setVida(int vida, int maxVida)
 
 void Player::reset()
 {
-    m_position = glm::vec4(0.0f, 0.101f, -0.7f, 1.0f);
+    m_position = glm::vec4(3.5f, 0.101f, 0.0f, 1.0f); 
     m_vida = m_maxVida;
     m_damageCooldownTimer = 0.0f;
     m_firstPerson = false;

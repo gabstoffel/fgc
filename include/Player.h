@@ -32,6 +32,7 @@ public:
     int getVida() const { return m_vida; }
     int getMaxVida() const { return m_maxVida; }
     void takeDamage(int damage);
+    void heal(int amount);
     bool isDead() const { return m_vida <= 0; }
     void setVida(int vida, int maxVida);
     void reset();

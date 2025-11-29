@@ -9,7 +9,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 Game::Game()
-    : m_dragonBoss(0.0f, 0.7f, 500)
+    : m_dragonBoss(-3.5f, 0.0f, 500)  /
     , m_dragonBossAlive(true)
     , m_window(nullptr)
     , m_lastFrameTime(0.0)
@@ -20,7 +20,33 @@ Game::Game()
     , m_countdownTimer(0.0f)
     , m_hitMarkerTimer(0.0f)
     , m_muzzleFlashTimer(0.0f)
+    , m_dragonAttackTimer(0.0f)
+    , m_dragonAttackInterval(2.5f)
+    , m_healthSpawnTimer(0.0f)
+    , m_gameTime(0.0f)
+    , m_baseEnemySpeed(0.25f)
 {
+    m_pillars.push_back({glm::vec3(-3.0f, 0.0f, 1.2f), 0.25f, 3.0f}); 
+    m_pillars.push_back({glm::vec3(-1.5f, 0.0f, 1.2f), 0.25f, 3.0f});  
+    m_pillars.push_back({glm::vec3(0.0f, 0.0f, 1.2f), 0.25f, 3.0f});  
+    m_pillars.push_back({glm::vec3(1.5f, 0.0f, 1.2f), 0.25f, 3.0f});  
+    m_pillars.push_back({glm::vec3(3.0f, 0.0f, 1.2f), 0.25f, 3.0f});  
+
+    m_pillars.push_back({glm::vec3(-3.0f, 0.0f, -1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(-1.5f, 0.0f, -1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(0.0f, 0.0f, -1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(1.5f, 0.0f, -1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(3.0f, 0.0f, -1.2f), 0.25f, 3.0f});
+
+    m_torches.push_back({glm::vec3(-2.25f, 1.5f, 1.3f), true});
+    m_torches.push_back({glm::vec3(-0.75f, 1.5f, 1.3f), true});
+    m_torches.push_back({glm::vec3(0.75f, 1.5f, 1.3f), true});
+    m_torches.push_back({glm::vec3(2.25f, 1.5f, 1.3f), true});
+
+    m_torches.push_back({glm::vec3(-2.25f, 1.5f, -1.3f), true});
+    m_torches.push_back({glm::vec3(-0.75f, 1.5f, -1.3f), true});
+    m_torches.push_back({glm::vec3(0.75f, 1.5f, -1.3f), true});
+    m_torches.push_back({glm::vec3(2.25f, 1.5f, -1.3f), true});
 }
 
 Game::~Game()
@@ -113,6 +139,9 @@ void Game::update(float deltaTime)
 
     int segundos = (int)glfwGetTime();
 
+    m_gameTime += deltaTime;
+    updateEnemySpeed(deltaTime);
+
     m_enemyManager.trySpawnEnemy(segundos, m_player.getPosition());
     m_player.update(m_window, deltaTime);
     m_enemyManager.update(deltaTime, m_player);
@@ -121,9 +150,13 @@ void Game::update(float deltaTime)
     handleDebugKillKey();
     m_enemyManager.removeDeadEnemies();
 
+    handleDragonAttack(deltaTime);
+
     m_projectileManager.update(deltaTime);
     handleProjectileCollisions();
     m_projectileManager.removeInactive();
+
+    handleHealthPickups(deltaTime);
 
     if (m_hitMarkerTimer > 0.0f)
         m_hitMarkerTimer -= deltaTime;
@@ -175,6 +208,8 @@ void Game::render()
             m_renderer.setView(view);
             m_renderer.setProjection(projection);
             m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
+            m_renderer.renderPillars(m_pillars);
+            m_renderer.renderTorches(m_torches);
 
             int countdownNum = (int)ceilf(m_countdownTimer);
             m_renderer.renderCountdown(countdownNum);
@@ -193,6 +228,9 @@ void Game::render()
             m_renderer.setView(view);
             m_renderer.setProjection(projection);
             m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive, &m_projectileManager);
+            m_renderer.renderPillars(m_pillars);
+            m_renderer.renderTorches(m_torches);
+            m_renderer.renderHealthPickups(m_healthPickups);
             m_renderer.renderHUD(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
             m_renderer.renderCrosshair(m_player.isFirstPerson());
 
@@ -222,9 +260,25 @@ void Game::handleCollisions()
     glm::vec4 floor_plane = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
     resolveAABBPlane(player_pos_3d, player_extents, floor_plane);
 
-    glm::vec3 arena_min = glm::vec3(-0.9f, -10.0f, -0.9f);
-    glm::vec3 arena_max = glm::vec3(0.9f, 10.0f, 0.9f);
+    glm::vec3 arena_min = glm::vec3(-4.3f, -10.0f, -1.3f);
+    glm::vec3 arena_max = glm::vec3(4.3f, 10.0f, 1.3f);
     clampPositionToBox(player_pos_3d, arena_min, arena_max);
+
+    float playerRadius = 0.1f;
+    for (const Pillar& pillar : m_pillars)
+    {
+        float dx = player_pos_3d.x - pillar.position.x;
+        float dz = player_pos_3d.z - pillar.position.z;
+        float dist = sqrt(dx * dx + dz * dz);
+        float minDist = pillar.radius + playerRadius;
+
+        if (dist < minDist && dist > 0.001f)
+        {
+            float pushFactor = (minDist - dist) / dist;
+            player_pos_3d.x += dx * pushFactor;
+            player_pos_3d.z += dz * pushFactor;
+        }
+    }
 
     m_player.updatePositionAfterCollision(player_pos_3d);
 
@@ -297,6 +351,10 @@ void Game::handleProjectileCollisions()
     float enemyRadius = 0.2f;
     float bossRadius = 0.3f;
     float projectileRadius = 0.05f;
+    float playerRadius = 0.15f;
+
+    glm::vec4 playerPos4 = m_player.getPosition();
+    glm::vec3 playerPos = glm::vec3(playerPos4.x, playerPos4.y + 0.1f, playerPos4.z);
 
     for (size_t p = 0; p < projectiles.size(); p++)
     {
@@ -304,6 +362,24 @@ void Game::handleProjectileCollisions()
             continue;
 
         glm::vec3 projPos = projectiles[p].position;
+
+        if (projectiles[p].isEnemyProjectile)
+        {
+            float dx = projPos.x - playerPos.x;
+            float dy = projPos.y - playerPos.y;
+            float dz = projPos.z - playerPos.z;
+            float distSq = dx * dx + dy * dy + dz * dz;
+            float combinedRadius = playerRadius + projectileRadius;
+
+            if (distSq < combinedRadius * combinedRadius)
+            {
+                m_player.takeDamage(15); 
+                projectiles[p].active = false;
+                printf("Player hit by fireball! HP: %d/%d\n", m_player.getVida(), m_player.getMaxVida());
+                continue;
+            }
+            continue;
+        }
 
         for (size_t e = 0; e < enemies.size(); e++)
         {
@@ -361,6 +437,102 @@ void Game::handleDebugKillKey()
 {
 }
 
+void Game::handleDragonAttack(float deltaTime)
+{
+    if (!m_dragonBossAlive)
+        return;
+
+    m_dragonAttackTimer += deltaTime;
+    if (m_dragonAttackTimer >= m_dragonAttackInterval)
+    {
+        m_dragonAttackTimer = 0.0f;
+
+        glm::vec4 dragonPos4 = m_dragonBoss.getPosition();
+        glm::vec3 dragonPos = glm::vec3(dragonPos4.x, dragonPos4.y + 0.15f, dragonPos4.z);
+
+        glm::vec4 playerPos4 = m_player.getPosition();
+        glm::vec3 playerPos = glm::vec3(playerPos4.x, playerPos4.y + 0.1f, playerPos4.z);
+
+        glm::vec3 dir = playerPos - dragonPos;
+        float len = sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+        if (len > 0.001f)
+        {
+            dir.x /= len;
+            dir.y /= len;
+            dir.z /= len;
+        }
+
+        m_projectileManager.spawnProjectile(dragonPos, dir, true);
+        printf("Dragon fires at player!\n");
+    }
+}
+
+void Game::handleHealthPickups(float deltaTime)
+{
+    m_healthSpawnTimer += deltaTime;
+    if (m_healthSpawnTimer >= HEALTH_SPAWN_INTERVAL && m_healthPickups.size() < MAX_HEALTH_PICKUPS)
+    {
+        m_healthSpawnTimer = 0.0f;
+        spawnHealthPickup();
+    }
+
+    glm::vec4 playerPos4 = m_player.getPosition();
+    glm::vec3 playerPos = glm::vec3(playerPos4.x, playerPos4.y, playerPos4.z);
+    float pickupRadius = 0.15f;
+
+    for (size_t i = 0; i < m_healthPickups.size(); i++)
+    {
+        if (!m_healthPickups[i].active)
+            continue;
+
+        glm::vec3 pickupPos = m_healthPickups[i].position;
+        float dx = playerPos.x - pickupPos.x;
+        float dz = playerPos.z - pickupPos.z;
+        float distSq = dx * dx + dz * dz;
+
+        if (distSq < pickupRadius * pickupRadius)
+        {
+            m_player.heal(m_healthPickups[i].healAmount);
+            m_healthPickups[i].active = false;
+            printf("Player picked up health! +%d HP\n", m_healthPickups[i].healAmount);
+        }
+    }
+
+    for (size_t i = 0; i < m_healthPickups.size(); )
+    {
+        if (!m_healthPickups[i].active)
+            m_healthPickups.erase(m_healthPickups.begin() + i);
+        else
+            i++;
+    }
+}
+
+void Game::spawnHealthPickup()
+{
+    float x = ((float)rand() / RAND_MAX) * 6.0f - 3.0f;
+    float z = ((float)rand() / RAND_MAX) * 2.0f - 1.0f;
+
+    HealthPickup pickup;
+    pickup.position = glm::vec3(x, 0.05f, z);
+    pickup.active = true;
+    pickup.healAmount = 25;
+
+    m_healthPickups.push_back(pickup);
+    printf("Health pickup spawned at (%.2f, %.2f)\n", x, z);
+}
+
+void Game::updateEnemySpeed(float deltaTime)
+{
+    float speedIncreaseInterval = 30.0f;
+    float speedMultiplier = 1.0f + (m_gameTime / speedIncreaseInterval) * 0.15f;
+
+    if (speedMultiplier > 2.0f)
+        speedMultiplier = 2.0f;
+
+    float newSpeed = m_baseEnemySpeed * speedMultiplier;
+    m_enemyManager.setEnemySpeed(newSpeed);
+}
+
 void Game::cleanup()
 {
     glfwTerminate();
@@ -416,10 +588,14 @@ void Game::resetGame()
     m_player.reset();
     m_enemyManager.clearEnemies();
     m_projectileManager.clear();
+    m_healthPickups.clear();
     m_dragonBoss = Enemy(0.0f, 0.7f, 500);
     m_dragonBossAlive = true;
     m_hitMarkerTimer = 0.0f;
     m_muzzleFlashTimer = 0.0f;
+    m_dragonAttackTimer = 0.0f;
+    m_healthSpawnTimer = 0.0f;
+    m_gameTime = 0.0f;
     setDifficulty(m_difficulty);
     startGame();
 }
@@ -430,8 +606,12 @@ void Game::returnToMenu()
     m_player.reset();
     m_enemyManager.clearEnemies();
     m_projectileManager.clear();
+    m_healthPickups.clear();
     m_dragonBoss = Enemy(0.0f, 0.7f, 500);
     m_dragonBossAlive = true;
     m_hitMarkerTimer = 0.0f;
     m_muzzleFlashTimer = 0.0f;
+    m_dragonAttackTimer = 0.0f;
+    m_healthSpawnTimer = 0.0f;
+    m_gameTime = 0.0f;
 }

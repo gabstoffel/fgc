@@ -159,14 +159,14 @@ void EnemyManager::update(float deltaTime, const Player& player)
 
 void EnemyManager::spawnEnemy(const glm::vec4& playerPosition)
 {
-    float x_aleatorio = 1.8f * rand() / (static_cast<float>(RAND_MAX)) - 0.9f;
-    float z_aleatorio = 0.9f * rand() / (static_cast<float>(RAND_MAX)); 
+    float x_aleatorio = 5.5f * rand() / (static_cast<float>(RAND_MAX)) - 3.5f;
+    float z_aleatorio = 2.0f * rand() / (static_cast<float>(RAND_MAX)) - 1.0f;
 
     while ((x_aleatorio - playerPosition.x) * (x_aleatorio - playerPosition.x) +
-           (z_aleatorio - playerPosition.z) * (z_aleatorio - playerPosition.z) < 0.3f)
+           (z_aleatorio - playerPosition.z) * (z_aleatorio - playerPosition.z) < 1.0f)
     {
-        x_aleatorio = 1.8f * rand() / (static_cast<float>(RAND_MAX)) - 0.9f;
-        z_aleatorio = 0.9f * rand() / (static_cast<float>(RAND_MAX));
+        x_aleatorio = 5.5f * rand() / (static_cast<float>(RAND_MAX)) - 3.5f;
+        z_aleatorio = 2.0f * rand() / (static_cast<float>(RAND_MAX)) - 1.0f;
     }
 
     Enemy novo_inimigo(x_aleatorio, z_aleatorio, 100);

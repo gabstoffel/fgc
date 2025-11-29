@@ -27,6 +27,11 @@ uniform mat4 projection;
 #define VARINHA 10
 #define PROJECTILE 11
 #define PROJECTILE_TRAIL 12
+#define ENEMY_PROJECTILE 13
+#define ENEMY_PROJECTILE_TRAIL 14
+#define PILLAR 15
+#define HEALTH_PICKUP 16
+#define TORCH 17
 uniform int object_id;
 uniform vec4 bbox_min;
 uniform vec4 bbox_max;
@@ -202,6 +207,55 @@ void main()
     else if(object_id == PROJECTILE_TRAIL)
     {
         color.rgb = vec3(0.5, 0.1, 0.7) * 2.5;
+    }
+    else if(object_id == ENEMY_PROJECTILE)
+    {
+        vec3 fireCore = vec3(1.0, 0.3, 0.0);
+        vec3 fireGlow = vec3(1.0, 0.6, 0.1);
+        float fresnel = 1.0 - max(dot(n, v), 0.0);
+        fresnel = pow(fresnel, 2.0);
+        color.rgb = mix(fireCore, fireGlow, fresnel) * 2.0;
+    }
+    else if(object_id == ENEMY_PROJECTILE_TRAIL)
+    {
+        color.rgb = vec3(1.0, 0.2, 0.0) * 1.8;
+    }
+    else if(object_id == PILLAR)
+    {
+        vec3 absPos = abs(position_model.xyz);
+        float maxCoord = max(absPos.x, max(absPos.y, absPos.z));
+        float pillarU, pillarV;
+
+        if (absPos.x >= maxCoord - 0.01) {
+            pillarU = position_world.z - floor(position_world.z);
+            pillarV = position_world.y - floor(position_world.y);
+        } else if (absPos.z >= maxCoord - 0.01) {
+            pillarU = position_world.x - floor(position_world.x);
+            pillarV = position_world.y - floor(position_world.y);
+        } else {
+            pillarU = position_world.x - floor(position_world.x);
+            pillarV = position_world.z - floor(position_world.z);
+        }
+
+        vec3 tex = texture(TextureImage1, vec2(pillarU, pillarV)).rgb;
+        float lambert = max(0, dot(n, l));
+        color.rgb = tex * lambert * I + tex * Ia;
+    }
+    else if(object_id == HEALTH_PICKUP)
+    {
+        vec3 healthCore = vec3(0.1, 0.9, 0.2);
+        vec3 healthGlow = vec3(0.3, 1.0, 0.4);
+        float fresnel = 1.0 - max(dot(n, v), 0.0);
+        fresnel = pow(fresnel, 2.0);
+        color.rgb = mix(healthCore, healthGlow, fresnel) * 1.5;
+    }
+    else if(object_id == TORCH)
+    {
+        vec3 fireCore = vec3(1.0, 0.5, 0.1);
+        vec3 fireGlow = vec3(1.0, 0.8, 0.2);
+        float fresnel = 1.0 - max(dot(n, v), 0.0);
+        fresnel = pow(fresnel, 2.0);
+        color.rgb = mix(fireCore, fireGlow, fresnel) * 2.5;
     }
     else
     {

@@ -3,9 +3,10 @@
 
 ProjectileManager::ProjectileManager()
     : m_projectileSpeed(6.0f)
+    , m_enemyProjectileSpeed(3.0f)
     , m_maxLifetime(3.0f)
     , m_trailUpdateInterval(0.015f)
-    , m_maxProjectiles(20)
+    , m_maxProjectiles(30)
 {
 }
 
@@ -13,8 +14,10 @@ ProjectileManager::~ProjectileManager()
 {
 }
 
-void ProjectileManager::spawnProjectile(const glm::vec3& origin, const glm::vec3& direction)
+void ProjectileManager::spawnProjectile(const glm::vec3& origin, const glm::vec3& direction, bool isEnemy)
 {
+    float speed = isEnemy ? m_enemyProjectileSpeed : m_projectileSpeed;
+
     if (m_projectiles.size() >= m_maxProjectiles)
     {
         for (size_t i = 0; i < m_projectiles.size(); i++)
@@ -23,9 +26,10 @@ void ProjectileManager::spawnProjectile(const glm::vec3& origin, const glm::vec3
             {
                 Projectile& proj = m_projectiles[i];
                 proj.position = origin;
-                proj.velocity = direction * m_projectileSpeed;
+                proj.velocity = direction * speed;
                 proj.lifetime = m_maxLifetime;
                 proj.active = true;
+                proj.isEnemyProjectile = isEnemy;
                 proj.trailIndex = 0;
                 proj.trailTimer = 0.0f;
                 for (int j = 0; j < Projectile::TRAIL_LENGTH; j++)
@@ -33,14 +37,15 @@ void ProjectileManager::spawnProjectile(const glm::vec3& origin, const glm::vec3
                 return;
             }
         }
-        return; 
+        return;
     }
 
     Projectile proj;
     proj.position = origin;
-    proj.velocity = direction * m_projectileSpeed;
+    proj.velocity = direction * speed;
     proj.lifetime = m_maxLifetime;
     proj.active = true;
+    proj.isEnemyProjectile = isEnemy;
     proj.trailIndex = 0;
     proj.trailTimer = 0.0f;
     for (int i = 0; i < Projectile::TRAIL_LENGTH; i++)

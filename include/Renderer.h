@@ -13,6 +13,10 @@
 #include <tiny_obj_loader.h>
 #include "Projectile.h"
 
+struct HealthPickup;
+struct Pillar;
+struct Torch;
+
 struct ObjModel
 {
     tinyobj::attrib_t                 attrib;
@@ -52,6 +56,9 @@ public:
     void renderPlayer(const Player& player);
     void renderEnemies(const EnemyManager& enemyManager, const glm::vec4& playerPosition);
     void renderDragonBoss(const Enemy& dragon, bool isAlive);
+    void renderPillars(const std::vector<Pillar>& pillars);
+    void renderHealthPickups(const std::vector<HealthPickup>& pickups);
+    void renderTorches(const std::vector<Torch>& torches);
     void renderCrosshair(bool isFirstPerson);
     void renderHUD(const Player& player, const EnemyManager& enemies, const Enemy& boss, bool bossAlive);
     void renderMenu(int selectedDifficulty);

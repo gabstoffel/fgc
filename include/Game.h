@@ -3,10 +3,32 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glm/vec3.hpp>
+#include <vector>
 #include "Player.h"
 #include "Enemy.h"
 #include "Renderer.h"
 #include "Projectile.h"
+
+struct HealthPickup
+{
+    glm::vec3 position;
+    bool active;
+    int healAmount;
+};
+
+struct Pillar
+{
+    glm::vec3 position;
+    float radius;
+    float height;
+};
+
+struct Torch
+{
+    glm::vec3 position;
+    bool active;
+};
 
 enum class GameState {
     MENU,
@@ -55,6 +77,10 @@ private:
     void handleDebugKillKey();
 
     void handleProjectileCollisions();
+    void handleDragonAttack(float deltaTime);
+    void handleHealthPickups(float deltaTime);
+    void spawnHealthPickup();
+    void updateEnemySpeed(float deltaTime);
 
     Player m_player;
     EnemyManager m_enemyManager;
@@ -78,6 +104,21 @@ private:
     float m_muzzleFlashTimer;
     static constexpr float HIT_MARKER_DURATION = 0.15f;
     static constexpr float MUZZLE_FLASH_DURATION = 0.08f;
+
+    float m_dragonAttackTimer;
+    float m_dragonAttackInterval;
+
+    std::vector<HealthPickup> m_healthPickups;
+    float m_healthSpawnTimer;
+    static constexpr float HEALTH_SPAWN_INTERVAL = 10.0f;
+    static constexpr int MAX_HEALTH_PICKUPS = 3;
+
+    std::vector<Pillar> m_pillars;
+
+    std::vector<Torch> m_torches;
+
+    float m_gameTime;
+    float m_baseEnemySpeed;
 };
 
 #endif 
