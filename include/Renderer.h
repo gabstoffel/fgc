@@ -55,7 +55,7 @@ public:
     void renderProjectiles(const ProjectileManager& projectileManager);
     void renderPlayer(const Player& player);
     void renderEnemies(const EnemyManager& enemyManager, const glm::vec4& playerPosition);
-    void renderDragonBoss(const Enemy& dragon, bool isAlive);
+    void renderDragonBoss(const Enemy& dragon, bool isAlive, const glm::vec4& playerPosition);
     void renderPillars(const std::vector<Pillar>& pillars);
     void renderHealthPickups(const std::vector<HealthPickup>& pickups);
     void renderTorches(const std::vector<Torch>& torches);

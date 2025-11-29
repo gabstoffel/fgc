@@ -4,8 +4,8 @@
 #include <cmath>
 
 Player::Player()
-    : m_position(3.5f, 0.101f, 0.0f, 1.0f) 
-    , m_firstPerson(false)
+    : m_position(3.5f, 0.101f, 0.0f, 1.0f)
+    , m_firstPerson(true)  
     , m_cameraTheta(0.0f)
     , m_cameraPhi(0.5f)
     , m_cameraDistance(2.0f)
@@ -288,13 +288,13 @@ void Player::setVida(int vida, int maxVida)
 
 void Player::reset()
 {
-    m_position = glm::vec4(3.5f, 0.101f, 0.0f, 1.0f); 
+    m_position = glm::vec4(3.5f, 0.101f, 0.0f, 1.0f);
     m_vida = m_maxVida;
     m_damageCooldownTimer = 0.0f;
-    m_firstPerson = false;
+    m_firstPerson = true;  
     m_cameraTheta = 0.0f;
     m_cameraPhi = 0.5f;
     m_cameraDistance = 2.0f;
-    m_cameraYaw = -1.57079632f;
+    m_cameraYaw = -1.57079632f;  
     m_cameraPitch = 0.0f;
 }

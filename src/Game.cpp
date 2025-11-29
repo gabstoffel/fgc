@@ -448,10 +448,10 @@ void Game::handleDragonAttack(float deltaTime)
         m_dragonAttackTimer = 0.0f;
 
         glm::vec4 dragonPos4 = m_dragonBoss.getPosition();
-        glm::vec3 dragonPos = glm::vec3(dragonPos4.x, dragonPos4.y + 0.15f, dragonPos4.z);
+        glm::vec3 dragonPos = glm::vec3(dragonPos4.x, 0.25f, dragonPos4.z);
 
         glm::vec4 playerPos4 = m_player.getPosition();
-        glm::vec3 playerPos = glm::vec3(playerPos4.x, playerPos4.y + 0.1f, playerPos4.z);
+        glm::vec3 playerPos = glm::vec3(playerPos4.x, 0.15f, playerPos4.z);
 
         glm::vec3 dir = playerPos - dragonPos;
         float len = sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);

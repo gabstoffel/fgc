@@ -175,7 +175,7 @@ void Renderer::renderScene(const Player& player, const EnemyManager& enemyManage
     renderArena();
     renderPlayer(player);
     renderEnemies(enemyManager, player.getPosition());
-    renderDragonBoss(dragonBoss, dragonBossAlive);
+    renderDragonBoss(dragonBoss, dragonBossAlive, player.getPosition());
 
     if (projectileManager != nullptr)
     {
@@ -272,7 +272,7 @@ void Renderer::renderEnemies(const EnemyManager& enemyManager, const glm::vec4& 
     }
 }
 
-void Renderer::renderDragonBoss(const Enemy& dragon, bool isAlive)
+void Renderer::renderDragonBoss(const Enemy& dragon, bool isAlive, const glm::vec4& playerPosition)
 {
     if (!isAlive)
         return;
@@ -282,11 +282,12 @@ void Renderer::renderDragonBoss(const Enemy& dragon, bool isAlive)
 
     PushMatrix(model);
 
-    static float rotation = 0.0f;
-    rotation += 0.01f;
+    float dx = playerPosition.x - dragonPos.x;
+    float dz = playerPosition.z - dragonPos.z;
+    float angleToPlayer = atan2(dx, dz) + 3.14159f;  
 
     model = model * Matrix_Translate(dragonPos.x, dragonPos.y + 0.15f, dragonPos.z)
-                  * Matrix_Rotate_Y(rotation)
+                  * Matrix_Rotate_Y(angleToPlayer)
                   * Matrix_Scale(0.4f, 0.4f, 0.4f);
 
     glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
