@@ -28,7 +28,18 @@ private:
     float m_x;
     float m_z;
     int m_vida;
-    float m_enemySpeed;   
+    float m_enemySpeed;
+
+    glm::vec4 m_bezierP0;       
+    glm::vec4 m_bezierP1;      
+    glm::vec4 m_bezierP2;      
+    glm::vec4 m_bezierP3;       
+    float m_bezierT;             
+    float m_curveRecalcTimer;    
+    bool m_curveInitialized;    
+    void recalculateCurve(const glm::vec4& playerPos);
+    glm::vec4 evaluateBezier(float t) const;
+    glm::vec4 evaluateBezierDerivative(float t) const;
 };
 
 class EnemyManager

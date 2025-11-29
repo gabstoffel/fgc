@@ -8,7 +8,14 @@ Enemy::Enemy(float x, float z, int vida)
     : m_x(x)
     , m_z(z)
     , m_vida(vida)
-    , m_enemySpeed(0.2f)
+    , m_enemySpeed(0.25f) 
+    , m_bezierP0(x, 0.0f, z, 1.0f)
+    , m_bezierP1(x, 0.0f, z, 1.0f)
+    , m_bezierP2(x, 0.0f, z, 1.0f)
+    , m_bezierP3(x, 0.0f, z, 1.0f)
+    , m_bezierT(0.0f)
+    , m_curveRecalcTimer(0.0f)
+    , m_curveInitialized(false)
 {
 }
 
@@ -18,14 +25,97 @@ Enemy::~Enemy()
 
 void Enemy::update(float deltaTime, const Player& player)
 {
-    glm::vec4 pos_enemy = glm::vec4(m_x, 0.0f, m_z, 1.0f);
-    glm::vec4 player_position = player.getPosition();
-    glm::vec4 pos_player = glm::vec4(player_position.x, 0.0f, player_position.z, 1.0f);
-    glm::vec4 distance = pos_player-pos_enemy;
-    distance = distance/norm(distance);
-    pos_enemy += distance*m_enemySpeed*deltaTime;
-    m_x = pos_enemy.x;
-    m_z = pos_enemy.z;
+    glm::vec4 playerPos = player.getPosition();
+
+    if (!m_curveInitialized) {
+        recalculateCurve(playerPos);
+        m_curveInitialized = true;
+    }
+
+    m_curveRecalcTimer -= deltaTime;
+
+    float distance = norm(m_bezierP3 - m_bezierP0);
+    if (distance > 0.001f) {
+        m_bezierT += (m_enemySpeed * deltaTime) / distance;
+    }
+
+    if (m_bezierT >= 1.0f || m_curveRecalcTimer <= 0.0f) {
+        m_bezierT = std::min(m_bezierT, 1.0f); 
+        recalculateCurve(playerPos);
+    }
+
+    glm::vec4 newPos = evaluateBezier(m_bezierT);
+    m_x = newPos.x;
+    m_z = newPos.z;
+}
+
+void Enemy::recalculateCurve(const glm::vec4& playerPos)
+{
+    glm::vec4 currentVelocity = glm::vec4(0.0f);
+    if (m_curveInitialized && m_bezierT > 0.001f) {
+        currentVelocity = evaluateBezierDerivative(m_bezierT);
+    }
+
+    // P0 
+    m_bezierP0 = glm::vec4(m_x, 0.0f, m_z, 1.0f);
+
+    // P3 
+    m_bezierP3 = glm::vec4(playerPos.x, 0.0f, playerPos.z, 1.0f);
+
+    glm::vec4 toTarget = m_bezierP3 - m_bezierP0;
+    float distance = norm(toTarget);
+
+    if (distance < 0.01f) {
+        m_bezierP1 = m_bezierP0;
+        m_bezierP2 = m_bezierP3;
+    } else {
+        glm::vec4 dir = toTarget / distance;
+
+        glm::vec4 perp = glm::vec4(-dir.z, 0.0f, dir.x, 0.0f);
+
+        // P1:
+        if (norm(currentVelocity) > 0.001f) {
+            glm::vec4 velDir = currentVelocity / norm(currentVelocity);
+            m_bezierP1 = m_bezierP0 + velDir * (distance * 0.33f);
+        } else {
+            float rand1 = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+            m_bezierP1 = m_bezierP0 + dir * (distance * 0.33f)
+                       + perp * (rand1 * distance * 0.15f);
+        }
+
+        // P2
+        float rand2 = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+        m_bezierP2 = m_bezierP0 + dir * (distance * 0.66f)
+                   + perp * (rand2 * distance * 0.15f);
+    }
+
+    m_bezierT = 0.0f;
+    m_curveRecalcTimer = 2.0f + ((float)rand() / RAND_MAX) * 1.0f;
+}
+
+glm::vec4 Enemy::evaluateBezier(float t) const
+{
+    // B(t) = (1-t)³P0 + 3(1-t)²tP1 + 3(1-t)t²P2 + t³P3
+    float u = 1.0f - t;
+    float u2 = u * u;
+    float u3 = u2 * u;
+    float t2 = t * t;
+    float t3 = t2 * t;
+
+    return u3 * m_bezierP0
+         + 3.0f * u2 * t * m_bezierP1
+         + 3.0f * u * t2 * m_bezierP2
+         + t3 * m_bezierP3;
+}
+
+glm::vec4 Enemy::evaluateBezierDerivative(float t) const
+{
+    //  B'(t) = 3(1-t)²(P1-P0) + 6(1-t)t(P2-P1) + 3t²(P3-P2)
+    float u = 1.0f - t;
+
+    return 3.0f * u * u * (m_bezierP1 - m_bezierP0)
+         + 6.0f * u * t * (m_bezierP2 - m_bezierP1)
+         + 3.0f * t * t * (m_bezierP3 - m_bezierP2);
 }
 
 float Enemy::lookAt(const glm::vec4& targetPosition) const
@@ -53,7 +143,7 @@ void Enemy::takeDamage(int damage)
 
 EnemyManager::EnemyManager()
     : m_previousSecond(0)
-    , m_maxEnemies(5)
+    , m_maxEnemies(2)
     , m_spawnInterval(5)
 {
 }

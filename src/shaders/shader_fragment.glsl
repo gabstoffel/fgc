@@ -89,8 +89,8 @@ void main()
 
     // Vetor que define o sentido da câmera em relação ao ponto atual.
     vec4 v = normalize(camera_position - p);
-    // Vetor que define o sentido da reflexão especular ideal.
     vec4 r = -l+2*n*(dotproduct(n, l));
+    vec4 h = normalize(l + v);
     // Parâmetros que definem as propriedades espectrais da superfície
     vec3 Kd; // Refletância difusa
     vec3 Ks; // Refletância especular
@@ -111,10 +111,8 @@ void main()
     }
     else if ( object_id == DRAGON_BOSS )
     {
-        Kd = vec3(0.5,0.2,0.2);
-        Ks = vec3(0.5,0.5,0.5);
-        Ka = vec3(0.2,0.1,0.1);
-        q = 32.0;
+        U = texcoords.x;
+        V = texcoords.y;
     }
     else if ( object_id == VARINHA )
     {
@@ -171,18 +169,25 @@ void main()
         color.rgb=vertex_color*tex;
     }
     else if(object_id == CUBE){
-        q=32;
+        q=128;
         vec3 corpo = texture(TextureImage4, vec2(U,V)).rgb;
         float lambert = max(0,dot(n,l));
-        float phong = pow(max(0,dot(r,v)),q);
-        color.rgb = corpo*lambert*I+corpo*Ia+phong*I;
+        float blinn_phong = pow(max(0,dot(n,h)),q);
+        color.rgb = corpo*lambert*I+corpo*Ia+blinn_phong*I;
     }
     else if(object_id == VARINHA){
-        q=8;
+        q=32; 
         vec3 varinha = texture(TextureImage5, vec2(U,V)).rgb;
         float lambert = max(0,dot(n,l));
+        float blinn_phong = pow(max(0,dot(n,h)),q);
+        color.rgb = varinha*lambert*I+varinha*Ia+blinn_phong*I;
+    }
+    else if(object_id == DRAGON_BOSS){
+        q=64;
+        vec3 dragon_tex = texture(TextureImage0, vec2(U,V)).rgb;
+        float lambert = max(0,dot(n,l));
         float phong = pow(max(0,dot(r,v)),q);
-        color.rgb = varinha*lambert*I+varinha*Ia+phong*I;
+        color.rgb = dragon_tex*lambert*I+dragon_tex*Ia+phong*I;
     }
     else
     {
