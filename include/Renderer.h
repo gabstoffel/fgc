@@ -28,6 +28,8 @@ struct SceneObject
     size_t       num_indices;
     GLenum       rendering_mode;
     GLuint       vertex_array_object_id;
+    glm::vec3    bbox_min;
+    glm::vec3    bbox_max;
 };
 
 class Player;
@@ -65,6 +67,7 @@ private:
     void drawVirtualObject(const std::string& object_name);
 
     void loadShadersFromFiles();
+    void LoadTextureImage(const char* filename);
     GLuint loadShader_Vertex(const char* filename);
     GLuint loadShader_Fragment(const char* filename);
     void loadShader(const char* filename, GLuint shader_id);
@@ -78,7 +81,10 @@ private:
     GLint m_projectionUniform;
     GLint m_renderAsBlackUniform;
     GLint m_objectIdUniform;
+    GLint m_bbox_min_uniform;
+    GLint m_bbox_max_uniform;
 
+    GLuint m_NumLoadedTextures = 0;
     std::map<std::string, SceneObject> m_virtualScene;
 
     glm::mat4 m_currentView;
