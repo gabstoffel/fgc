@@ -13,7 +13,7 @@ in vec3 vertex_color;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
-
+const float M_PI = 3.14159265358979323846;
 // Identificador que define qual objeto está sendo desenhado no momento
 #define MONSTRO 0
 #define CUBE  1
@@ -41,6 +41,9 @@ uniform sampler2D TextureImage2;
 uniform sampler2D TextureImage3;
 uniform sampler2D TextureImage4;
 uniform sampler2D TextureImage5;
+uniform sampler2D TextureImage6;
+uniform sampler2D TextureImage7;
+uniform sampler2D TextureImage8;
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec4 color;
 
@@ -183,7 +186,7 @@ void main()
         color.rgb = corpo*lambert*I+corpo*Ia+blinn_phong*I;
     }
     else if(object_id == VARINHA){
-        q=32; 
+        q=32;
         vec3 varinha = texture(TextureImage5, vec2(U,V)).rgb;
         float lambert = max(0,dot(n,l));
         float blinn_phong = pow(max(0,dot(n,h)),q);
@@ -198,23 +201,37 @@ void main()
     }
     else if(object_id == PROJECTILE)
     {
-        vec3 purpleCore = vec3(0.6, 0.1, 0.9);
-        vec3 purpleGlow = vec3(0.8, 0.3, 1.0);
-        float fresnel = 1.0 - max(dot(n, v), 0.0);
-        fresnel = pow(fresnel, 2.0);
-        color.rgb = mix(purpleCore, purpleGlow, fresnel) * 1.8;
+        vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
+        vec4 vetor_centro = position_model-bbox_center;
+        float raio = length(vetor_centro);
+        float arcotangente = atan(vetor_centro.x,vetor_centro.z);
+        float arcsen = asin(vetor_centro.y/raio);
+        U = (arcotangente+M_PI)/(2*M_PI);
+        V = (arcsen+M_PI/2)/M_PI;
+        q=64;
+        vec3 magic = texture(TextureImage7, vec2(U,V)).rgb;
+        float lambert = max(0,dot(n,l));
+        float phong = pow(max(0,dot(r,v)),q);
+        color.rgb = magic*lambert*I+magic*Ia+phong*I;
     }
     else if(object_id == PROJECTILE_TRAIL)
     {
-        color.rgb = vec3(0.5, 0.1, 0.7) * 2.5;
+        color.rgb = vec3(0.7, 0.1, 0.7) * 2.5;
     }
     else if(object_id == ENEMY_PROJECTILE)
     {
-        vec3 fireCore = vec3(1.0, 0.3, 0.0);
-        vec3 fireGlow = vec3(1.0, 0.6, 0.1);
-        float fresnel = 1.0 - max(dot(n, v), 0.0);
-        fresnel = pow(fresnel, 2.0);
-        color.rgb = mix(fireCore, fireGlow, fresnel) * 2.0;
+       vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
+        vec4 vetor_centro = position_model-bbox_center;
+        float raio = length(vetor_centro);
+        float arcotangente = atan(vetor_centro.x,vetor_centro.z);
+        float arcsen = asin(vetor_centro.y/raio);
+        U = (arcotangente+M_PI)/(2*M_PI);
+        V = (arcsen+M_PI/2)/M_PI;
+        q=64;
+        vec3 fire = texture(TextureImage8, vec2(U,V)).rgb;
+        float lambert = max(0,dot(n,l));
+        float phong = pow(max(0,dot(r,v)),q);
+        color.rgb = fire*lambert*I+fire*Ia+phong*I;
     }
     else if(object_id == ENEMY_PROJECTILE_TRAIL)
     {
@@ -243,11 +260,13 @@ void main()
     }
     else if(object_id == HEALTH_PICKUP)
     {
-        vec3 healthCore = vec3(0.1, 0.9, 0.2);
-        vec3 healthGlow = vec3(0.3, 1.0, 0.4);
-        float fresnel = 1.0 - max(dot(n, v), 0.0);
-        fresnel = pow(fresnel, 2.0);
-        color.rgb = mix(healthCore, healthGlow, fresnel) * 1.5;
+        q=4;
+        U = texcoords.x;
+        V = texcoords.y;
+        vec3 health_tex = texture(TextureImage6, vec2(U,V)).rgb;
+        float lambert = max(0,dot(n,l));
+        float phong = pow(max(0,dot(r,v)),q);
+        color.rgb = health_tex*lambert*I+health_tex*Ia+phong*I;
     }
     else if(object_id == TORCH)
     {

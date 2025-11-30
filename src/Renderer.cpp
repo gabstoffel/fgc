@@ -100,6 +100,12 @@ bool Renderer::init(GLFWwindow* window)
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage4"), 4);
     //Varinha
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage5"), 5);
+    //Vida
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage6"), 6);
+    //Projétil player
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage7"), 7);
+    //Projétil inimigo
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage8"), 8);
     glUseProgram(0);
 
     m_vertexArrayObjectID = buildGeometry();
@@ -111,6 +117,9 @@ bool Renderer::init(GLFWwindow* window)
         LoadTextureImage("texturas/telhado.jpg");
         LoadTextureImage("texturas/Arqueira.png");
         LoadTextureImage("texturas/Varinha.png");
+        LoadTextureImage("texturas/vida.png");
+        LoadTextureImage("texturas/magica.jpg");
+        LoadTextureImage("texturas/lava.png");
 
         ObjModel monstermodel("modelos/monstro.obj");
         computeNormals(&monstermodel);
@@ -136,6 +145,14 @@ bool Renderer::init(GLFWwindow* window)
         computeNormals(&varinhamodel);
         buildTrianglesFromObj(&varinhamodel);
 
+        ObjModel vidamodel("modelos/vida.obj");
+        computeNormals(&vidamodel);
+        buildTrianglesFromObj(&vidamodel);
+
+        ObjModel fireballmodel("modelos/fireball.obj");
+        computeNormals(&fireballmodel);
+        buildTrianglesFromObj(&fireballmodel);
+
         printf("All OBJ models loaded successfully!\n");
     } catch (const std::exception& e) {
         fprintf(stderr, "ERROR loading OBJ models: %s\n", e.what());
@@ -160,7 +177,7 @@ void Renderer::setView(const glm::mat4& view)
     glUniformMatrix4fv(m_viewUniform, 1, GL_FALSE, glm::value_ptr(view));
 }
 
-void Renderer::renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive, const ProjectileManager* projectileManager)
+void Renderer::renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive, float deltaTime, const ProjectileManager* projectileManager)
 {
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -179,7 +196,7 @@ void Renderer::renderScene(const Player& player, const EnemyManager& enemyManage
 
     if (projectileManager != nullptr)
     {
-        renderProjectiles(*projectileManager);
+        renderProjectiles(*projectileManager, deltaTime);
     }
 }
 
@@ -309,7 +326,7 @@ void Renderer::renderPillars(const std::vector<Pillar>& pillars)
 
         glm::mat4 model = Matrix_Identity();
         float cubeSize = 0.2f;
-        float scaleX = (pillar.radius * 2.0f) / cubeSize; 
+        float scaleX = (pillar.radius * 2.0f) / cubeSize;
         float scaleY = pillar.height / cubeSize;
         float scaleZ = (pillar.radius * 2.0f) / cubeSize;
 
@@ -326,10 +343,10 @@ void Renderer::renderPillars(const std::vector<Pillar>& pillars)
     glEnable(GL_CULL_FACE);
 }
 
-void Renderer::renderHealthPickups(const std::vector<HealthPickup>& pickups)
+void Renderer::renderHealthPickups(const std::vector<HealthPickup>& pickups, float deltaTime)
 {
     static float rotation = 0.0f;
-    rotation += 0.02f;
+    rotation += 0.5f*deltaTime;
 
     for (size_t i = 0; i < pickups.size(); i++)
     {
@@ -346,20 +363,18 @@ void Renderer::renderHealthPickups(const std::vector<HealthPickup>& pickups)
                       * Matrix_Scale(pickupScale, pickupScale, pickupScale);
 
         glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform1i(m_objectIdUniform, 16); 
-
-        glBindVertexArray(m_vertexArrayObjectID);
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+        glUniform1i(m_objectIdUniform, 16);
+        drawVirtualObject("vida");
     }
 }
 
-void Renderer::renderTorches(const std::vector<Torch>& torches)
+void Renderer::renderTorches(const std::vector<Torch>& torches, float deltaTime)
 {
     static float flicker = 0.0f;
-    flicker += 0.15f;
+    flicker += 2.5f*deltaTime;
 
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE); 
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
     glDepthMask(GL_FALSE);
 
     for (size_t i = 0; i < torches.size(); i++)
@@ -373,7 +388,7 @@ void Renderer::renderTorches(const std::vector<Torch>& torches)
 
         glm::mat4 model = Matrix_Identity();
         model = model * Matrix_Translate(torch.position.x, torch.position.y, torch.position.z)
-                      * Matrix_Scale(scale, scale * 1.5f, scale);  
+                      * Matrix_Scale(scale, scale * 1.5f, scale);
 
         glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(m_objectIdUniform, 17);  // TOCHA
@@ -386,7 +401,7 @@ void Renderer::renderTorches(const std::vector<Torch>& torches)
     glDisable(GL_BLEND);
 }
 
-void Renderer::renderProjectiles(const ProjectileManager& projectileManager)
+void Renderer::renderProjectiles(const ProjectileManager& projectileManager, float deltaTime)
 {
     const std::vector<Projectile>& projectiles = projectileManager.getProjectiles();
 
@@ -402,14 +417,13 @@ void Renderer::renderProjectiles(const ProjectileManager& projectileManager)
         const Projectile& proj = projectiles[i];
 
         glm::mat4 model = Matrix_Identity();
-        model = model * Matrix_Translate(proj.position.x, proj.position.y, proj.position.z)
-                      * Matrix_Scale(0.05f, 0.05f, 0.05f);
+        model = model * Matrix_Translate(proj.position.x, proj.position.y-0.03f, proj.position.z)
+                      * Matrix_Scale(0.005f, 0.005f, 0.005f);
 
         glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(m_objectIdUniform, proj.isEnemyProjectile ? 13 : 11);
 
-        glBindVertexArray(m_vertexArrayObjectID);
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+        drawVirtualObject("Sphere");
 
         for (int t = 0; t < Projectile::TRAIL_LENGTH; t++)
         {
@@ -432,6 +446,7 @@ void Renderer::renderProjectiles(const ProjectileManager& projectileManager)
             glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
             glUniform1i(m_objectIdUniform, proj.isEnemyProjectile ? 14 : 12);
 
+            glBindVertexArray(m_vertexArrayObjectID);
             glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
         }
     }
@@ -448,10 +463,6 @@ void Renderer::renderHitMarker()
     TextRendering_PrintString(m_window, "X", -0.02f, -0.02f, 2.0f);
 }
 
-void Renderer::renderMuzzleFlash()
-{
-    // Removed - purple projectile provides sufficient visual feedback
-}
 
 void Renderer::renderDamageFlash(float intensity)
 {

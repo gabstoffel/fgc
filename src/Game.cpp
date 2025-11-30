@@ -9,7 +9,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 Game::Game()
-    : m_dragonBoss(-3.5f, 0.0f, 500)  
+    : m_dragonBoss(-3.5f, 0.0f, 500)
     , m_dragonBossAlive(true)
     , m_window(nullptr)
     , m_lastFrameTime(0.0)
@@ -26,11 +26,11 @@ Game::Game()
     , m_gameTime(0.0f)
     , m_baseEnemySpeed(0.25f)
 {
-    m_pillars.push_back({glm::vec3(-3.0f, 0.0f, 1.2f), 0.25f, 3.0f}); 
-    m_pillars.push_back({glm::vec3(-1.5f, 0.0f, 1.2f), 0.25f, 3.0f});  
-    m_pillars.push_back({glm::vec3(0.0f, 0.0f, 1.2f), 0.25f, 3.0f});  
-    m_pillars.push_back({glm::vec3(1.5f, 0.0f, 1.2f), 0.25f, 3.0f});  
-    m_pillars.push_back({glm::vec3(3.0f, 0.0f, 1.2f), 0.25f, 3.0f});  
+    m_pillars.push_back({glm::vec3(-3.0f, 0.0f, 1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(-1.5f, 0.0f, 1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(0.0f, 0.0f, 1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(1.5f, 0.0f, 1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(3.0f, 0.0f, 1.2f), 0.25f, 3.0f});
 
     m_pillars.push_back({glm::vec3(-3.0f, 0.0f, -1.2f), 0.25f, 3.0f});
     m_pillars.push_back({glm::vec3(-1.5f, 0.0f, -1.2f), 0.25f, 3.0f});
@@ -112,7 +112,7 @@ void Game::run()
         m_lastFrameTime = currentTime;
 
         update(deltaTime);
-        render();
+        render(deltaTime);
 
         glfwSwapBuffers(m_window);
         glfwPollEvents();
@@ -176,7 +176,7 @@ void Game::update(float deltaTime)
     }
 }
 
-void Game::render()
+void Game::render(float deltaTime)
 {
     switch (m_gameState)
     {
@@ -186,7 +186,7 @@ void Game::render()
 
     case GameState::COUNTDOWN:
         {
-            float angle = (4.0f - m_countdownTimer) * 0.5f; 
+            float angle = (4.0f - m_countdownTimer) * 0.5f;
             float camHeight = 2.5f;
             float camDist = 2.0f;
             glm::vec4 camera_position = glm::vec4(
@@ -207,9 +207,9 @@ void Game::render()
 
             m_renderer.setView(view);
             m_renderer.setProjection(projection);
-            m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
+            m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive, deltaTime);
             m_renderer.renderPillars(m_pillars);
-            m_renderer.renderTorches(m_torches);
+            m_renderer.renderTorches(m_torches, deltaTime);
 
             int countdownNum = (int)ceilf(m_countdownTimer);
             m_renderer.renderCountdown(countdownNum);
@@ -227,17 +227,15 @@ void Game::render()
 
             m_renderer.setView(view);
             m_renderer.setProjection(projection);
-            m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive, &m_projectileManager);
+            m_renderer.renderScene(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive, deltaTime, &m_projectileManager);
             m_renderer.renderPillars(m_pillars);
-            m_renderer.renderTorches(m_torches);
-            m_renderer.renderHealthPickups(m_healthPickups);
+            m_renderer.renderTorches(m_torches, deltaTime);
+            m_renderer.renderHealthPickups(m_healthPickups, deltaTime);
             m_renderer.renderHUD(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive);
             m_renderer.renderCrosshair(m_player.isFirstPerson());
 
             if (m_hitMarkerTimer > 0.0f)
                 m_renderer.renderHitMarker();
-            if (m_muzzleFlashTimer > 0.0f)
-                m_renderer.renderMuzzleFlash();
         }
         break;
 
@@ -321,7 +319,7 @@ void Game::handleShooting()
         return;
 
     if (!m_player.isFirstPerson())
-        return; 
+        return;
 
     glm::vec4 origin = m_player.getCameraPosition();
     glm::vec4 dir = m_player.getCameraDirection();
@@ -373,7 +371,7 @@ void Game::handleProjectileCollisions()
 
             if (distSq < combinedRadius * combinedRadius)
             {
-                m_player.takeDamage(15); 
+                m_player.takeDamage(15);
                 projectiles[p].active = false;
                 printf("Player hit by fireball! HP: %d/%d\n", m_player.getVida(), m_player.getMaxVida());
                 continue;
@@ -552,19 +550,19 @@ void Game::setDifficulty(int difficulty)
 
     switch (difficulty)
     {
-    case 0: 
+    case 0:
         m_player.setVida(150, 150);
         m_enemyManager.setEnemySpeed(0.15f);
         m_enemyManager.setMaxEnemies(1);
         m_enemyDamage = 5;
         break;
-    case 1: 
+    case 1:
         m_player.setVida(100, 100);
         m_enemyManager.setEnemySpeed(0.25f);
         m_enemyManager.setMaxEnemies(2);
         m_enemyDamage = 10;
         break;
-    case 2: 
+    case 2:
         m_player.setVida(75, 75);
         m_enemyManager.setEnemySpeed(0.35f);
         m_enemyManager.setMaxEnemies(3);

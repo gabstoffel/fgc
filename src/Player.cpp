@@ -5,7 +5,7 @@
 
 Player::Player()
     : m_position(3.5f, 0.101f, 0.0f, 1.0f)
-    , m_firstPerson(true)  
+    , m_firstPerson(true)
     , m_cameraTheta(0.0f)
     , m_cameraPhi(0.5f)
     , m_cameraDistance(2.0f)
@@ -68,7 +68,7 @@ void Player::update(GLFWwindow* window, float deltaTime)
 
         if (movement_input.x != 0.0f || movement_input.y != 0.0f)
         {
-            m_movementAngle = atan2(movement_input.x, movement_input.y) + m_cameraYaw;
+            m_movementAngle = m_cameraYaw;
         }
     }
     else
@@ -96,7 +96,7 @@ void Player::update(GLFWwindow* window, float deltaTime)
 
         if (movement_input.x != 0.0f || movement_input.y != 0.0f)
         {
-            m_movementAngle = atan2(movement_input.x, movement_input.y);
+            m_movementAngle = atan2(movement_input.x, -movement_input.y);
         }
     }
 
@@ -291,10 +291,10 @@ void Player::reset()
     m_position = glm::vec4(3.5f, 0.101f, 0.0f, 1.0f);
     m_vida = m_maxVida;
     m_damageCooldownTimer = 0.0f;
-    m_firstPerson = true;  
+    m_firstPerson = true;
     m_cameraTheta = 0.0f;
     m_cameraPhi = 0.5f;
     m_cameraDistance = 2.0f;
-    m_cameraYaw = -1.57079632f;  
+    m_cameraYaw = -1.57079632f;
     m_cameraPitch = 0.0f;
 }
