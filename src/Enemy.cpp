@@ -18,6 +18,8 @@ Enemy::Enemy(float x, float z, int vida)
     , m_bezierT(0.0f)
     , m_curveRecalcTimer(0.0f)
     , m_curveInitialized(false)
+    , m_dying(false)
+    , m_deathTimer(0.0f)
 {
 }
 
@@ -27,6 +29,12 @@ Enemy::~Enemy()
 
 void Enemy::update(float deltaTime, const Player& player)
 {
+    if (m_dying)
+    {
+        m_deathTimer += deltaTime;
+        return;
+    }
+
     glm::vec4 playerPos = player.getPosition();
 
     bool inKnockback = (m_knockbackVelX != 0.0f || m_knockbackVelZ != 0.0f);
@@ -175,6 +183,33 @@ void Enemy::applyKnockback(float dirX, float dirZ, float force)
     m_knockbackVelZ = dirZ * force;
 }
 
+void Enemy::startDying()
+{
+    if (!m_dying)
+    {
+        m_dying = true;
+        m_deathTimer = 0.0f;
+    }
+}
+
+float Enemy::getDeathProgress() const
+{
+    if (!m_dying) return 0.0f;
+    return std::min(m_deathTimer / DEATH_ANIM_DURATION, 1.0f);
+}
+
+float Enemy::getDeathScale() const
+{
+    if (!m_dying) return 1.0f;
+    float t = getDeathProgress();
+    return 1.0f + t * (2.0f - t);
+}
+
+bool Enemy::isReadyForRemoval() const
+{
+    return m_dying && m_deathTimer >= DEATH_ANIM_DURATION;
+}
+
 EnemyManager::EnemyManager()
     : m_previousSecond(-1)
     , m_maxEnemies(2)
@@ -192,7 +227,7 @@ int EnemyManager::getRandomEnemyHP()
     switch (m_difficulty) {
         case 0: easyChance = 70; mediumChance = 95; break;  
         case 1: easyChance = 33; mediumChance = 67; break;  
-        case 2: easyChance = 5;  mediumChance = 30; break;  /
+        case 2: easyChance = 5;  mediumChance = 30; break;
         default: easyChance = 33; mediumChance = 67; break;
     }
 
@@ -251,8 +286,26 @@ void EnemyManager::removeDeadEnemies()
     for (size_t i = 0; i < m_enemies.size(); )
     {
         if (m_enemies[i].isDead())
-            m_enemies.erase(m_enemies.begin() + i);
+        {
+            if (!m_enemies[i].isDying())
+            {
+                m_enemies[i].startDying();
+                i++;
+            }
+            else if (m_enemies[i].isReadyForRemoval())
+            {
+                m_enemies.erase(m_enemies.begin() + i);
+            }
+            else
+            {
+                i++;
+            }
+        }
         else
+        {
             i++;
+        }
     }
 }
+
+

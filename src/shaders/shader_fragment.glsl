@@ -32,6 +32,7 @@ const float M_PI = 3.14159265358979323846;
 #define PILLAR 15
 #define HEALTH_PICKUP 16
 #define TORCH 17
+#define DYING_ENEMY 18
 uniform int object_id;
 uniform vec4 bbox_min;
 uniform vec4 bbox_max;
@@ -225,6 +226,12 @@ void main()
 
         vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_monster, Ks_monster, 64.0);
         color.rgb = Ka_monster * Ia + pointLighting;
+    }
+    else if (object_id == DYING_ENEMY)
+    {
+        vec3 pele = texture(TextureImage0, vec2(U,V)).rgb;
+        vec3 flashColor = vec3(1.0, 0.9, 0.5);
+        color.rgb = mix(pele, flashColor, 0.7) * 1.5;
     }
     else if(object_id >= 2 && object_id<= 7)
     {

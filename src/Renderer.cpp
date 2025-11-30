@@ -244,7 +244,7 @@ void Renderer::renderPlayer(const Player& player)
     float dist_chao = m_virtualScene["Arqueira"].bbox_min.y;
     dist_chao=0-dist_chao;
     dist_chao=dist_chao*0.001f;
-    model = model * Matrix_Translate(position.x, dist_chao, position.z)
+    model = model * Matrix_Translate(position.x, dist_chao + position.y - 0.101f, position.z)
                   * Matrix_Rotate_Y(player.getMovementAngle());
     PushMatrix(model);
         //Varinha
@@ -277,14 +277,22 @@ void Renderer::renderEnemies(const EnemyManager& enemyManager, const glm::vec4& 
     dist_chao=dist_chao*0.15f;
     for (size_t i = 0; i < enemies.size(); i++)
     {
+        float baseScale = 0.15f;
+        float deathScale = enemies[i].getDeathScale();
+        float finalScale = baseScale * deathScale;
+
         PushMatrix(model);
         model = model * Matrix_Translate(enemies[i].getX(), dist_chao, enemies[i].getZ());
         float rotation_angle = enemies[i].lookAt(playerPosition);
         model = model * Matrix_Rotate_Y(rotation_angle);
-        model = model * Matrix_Scale(0.15f, 0.15f, 0.15f);
+        model = model * Matrix_Scale(finalScale, finalScale, finalScale);
 
         glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
-        glUniform1i(m_objectIdUniform, 0);
+
+        if (enemies[i].isDying())
+            glUniform1i(m_objectIdUniform, 18);
+        else
+            glUniform1i(m_objectIdUniform, 0);
 
         if (m_virtualScene.find("turle") != m_virtualScene.end())
             drawVirtualObject("turle");

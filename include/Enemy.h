@@ -26,6 +26,12 @@ public:
     void setPosition(float x, float z) { m_x = x; m_z = z; }
     void applyKnockback(float dirX, float dirZ, float force);
 
+    bool isDying() const { return m_dying; }
+    float getDeathProgress() const;
+    float getDeathScale() const;
+    void startDying();
+    bool isReadyForRemoval() const;
+
 private:
     float m_x;
     float m_z;
@@ -40,10 +46,14 @@ private:
     glm::vec4 m_bezierP3;       
     float m_bezierT;             
     float m_curveRecalcTimer;    
-    bool m_curveInitialized;    
+    bool m_curveInitialized;
     void recalculateCurve(const glm::vec4& playerPos);
     glm::vec4 evaluateBezier(float t) const;
     glm::vec4 evaluateBezierDerivative(float t) const;
+
+    bool m_dying;
+    float m_deathTimer;
+    static constexpr float DEATH_ANIM_DURATION = 0.35f;
 };
 
 class EnemyManager
