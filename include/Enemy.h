@@ -23,6 +23,7 @@ public:
     float getZ() const { return m_z; }
     int getVida() const { return m_vida; }
     glm::vec4 getPosition() const { return glm::vec4(m_x, 0.101f, m_z, 1.0f); }
+    void setPosition(float x, float z) { m_x = x; m_z = z; }
 
 private:
     float m_x;

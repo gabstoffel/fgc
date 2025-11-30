@@ -47,6 +47,16 @@ void Enemy::update(float deltaTime, const Player& player)
     glm::vec4 newPos = evaluateBezier(m_bezierT);
     m_x = newPos.x;
     m_z = newPos.z;
+
+    const float arenaMinX = -4.2f;
+    const float arenaMaxX = 4.2f;
+    const float arenaMinZ = -1.2f;
+    const float arenaMaxZ = 1.2f;
+
+    if (m_x < arenaMinX) m_x = arenaMinX;
+    if (m_x > arenaMaxX) m_x = arenaMaxX;
+    if (m_z < arenaMinZ) m_z = arenaMinZ;
+    if (m_z > arenaMaxZ) m_z = arenaMaxZ;
 }
 
 void Enemy::recalculateCurve(const glm::vec4& playerPos)

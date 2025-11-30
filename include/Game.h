@@ -71,6 +71,7 @@ private:
     void render(float deltaTime);
 
     void handleCollisions();
+    void handleEnemyEnvironmentCollisions();
 
     void handleShooting();
 

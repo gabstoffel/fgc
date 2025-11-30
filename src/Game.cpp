@@ -145,6 +145,7 @@ void Game::update(float deltaTime)
     m_enemyManager.trySpawnEnemy(segundos, m_player.getPosition());
     m_player.update(m_window, deltaTime);
     m_enemyManager.update(deltaTime, m_player);
+    handleEnemyEnvironmentCollisions(); 
     handleCollisions();
     handleShooting();
     handleDebugKillKey();
@@ -280,21 +281,36 @@ void Game::handleCollisions()
 
     m_player.updatePositionAfterCollision(player_pos_3d);
 
-    const std::vector<Enemy>& enemies = m_enemyManager.getEnemies();
+    std::vector<Enemy>& enemies = const_cast<std::vector<Enemy>&>(m_enemyManager.getEnemies());
     float collisionRadius = 0.25f;
-    float collisionRadiusSq = collisionRadius * collisionRadius;
 
-    for (const Enemy& enemy : enemies)
+    for (Enemy& enemy : enemies)
     {
-        glm::vec4 enemyPos = enemy.getPosition();
-        float dx = player_pos_3d.x - enemyPos.x;
-        float dz = player_pos_3d.z - enemyPos.z;
-        float distSq = dx * dx + dz * dz;
+        glm::vec4 enemyPos4 = enemy.getPosition();
+        float dx = player_pos_3d.x - enemyPos4.x;
+        float dz = player_pos_3d.z - enemyPos4.z;
+        float dist = sqrt(dx * dx + dz * dz);
 
-        if (distSq < collisionRadiusSq)
+        if (dist < collisionRadius && dist > 0.001f)
         {
             m_player.takeDamage(m_enemyDamage);
-            break;
+
+            float pushDirX = dx / dist;
+            float pushDirZ = dz / dist;
+
+            float pushDistance = (collisionRadius - dist) / 2.0f + 0.1f;
+
+            player_pos_3d.x += pushDirX * pushDistance;
+            player_pos_3d.z += pushDirZ * pushDistance;
+
+            float enemyNewX = enemyPos4.x - pushDirX * pushDistance;
+            float enemyNewZ = enemyPos4.z - pushDirZ * pushDistance;
+            enemy.setPosition(enemyNewX, enemyNewZ);
+
+            m_player.updatePositionAfterCollision(player_pos_3d);
+
+            printf("Collision! Player and enemy pushed apart\n");
+            break;  
         }
     }
 
@@ -303,12 +319,59 @@ void Game::handleCollisions()
         glm::vec4 dragonPos = m_dragonBoss.getPosition();
         float dx = player_pos_3d.x - dragonPos.x;
         float dz = player_pos_3d.z - dragonPos.z;
-        float distSq = dx * dx + dz * dz;
+        float dist = sqrt(dx * dx + dz * dz);
         float bossCollisionRadius = 0.35f;
 
-        if (distSq < bossCollisionRadius * bossCollisionRadius)
+        if (dist < bossCollisionRadius && dist > 0.001f)
         {
             m_player.takeDamage(m_enemyDamage * 2);
+
+            float pushDirX = dx / dist;
+            float pushDirZ = dz / dist;
+
+            float pushDistance = (bossCollisionRadius - dist) + 0.15f;
+
+            player_pos_3d.x += pushDirX * pushDistance;
+            player_pos_3d.z += pushDirZ * pushDistance;
+
+            m_player.updatePositionAfterCollision(player_pos_3d);
+
+            printf("Collision! Player pushed away from dragon\n");
+        }
+    }
+}
+
+void Game::handleEnemyEnvironmentCollisions()
+{
+    std::vector<Enemy>& enemies = const_cast<std::vector<Enemy>&>(m_enemyManager.getEnemies());
+    float enemyRadius = 0.15f;
+
+    for (Enemy& enemy : enemies)
+    {
+        glm::vec4 enemyPos4 = enemy.getPosition();
+        float enemyX = enemyPos4.x;
+        float enemyZ = enemyPos4.z;
+        bool positionChanged = false;
+
+        for (const Pillar& pillar : m_pillars)
+        {
+            float dx = enemyX - pillar.position.x;
+            float dz = enemyZ - pillar.position.z;
+            float dist = sqrt(dx * dx + dz * dz);
+            float minDist = pillar.radius + enemyRadius;
+
+            if (dist < minDist && dist > 0.001f)
+            {
+                float pushFactor = (minDist - dist) / dist;
+                enemyX += dx * pushFactor;
+                enemyZ += dz * pushFactor;
+                positionChanged = true;
+            }
+        }
+
+        if (positionChanged)
+        {
+            enemy.setPosition(enemyX, enemyZ);
         }
     }
 }
