@@ -8,6 +8,7 @@
 // and lecture notes from INF01047 - Fundamentos de Computação Gráfica, UFRGS
 
 #include "collisions.h"
+#include "matrices.h"
 #include <cmath>
 #include <algorithm>
 
@@ -35,7 +36,7 @@ bool testAABBPlane(glm::vec3 boxMin, glm::vec3 boxMax, glm::vec4 plane) {
               extents.z * std::abs(normal.z);
 
     // Compute signed distance of box center from plane
-    float s = glm::dot(normal, center) + d;
+    float s = dotproduct(normal, center) + d;
 
     // Intersection occurs when distance s falls within [-r, +r] interval
     return std::abs(s) <= r;
@@ -61,7 +62,7 @@ bool resolveAABBPlane(glm::vec3& position, glm::vec3 extents, glm::vec4 plane) {
               extents.z * std::abs(normal.z);
 
     // Compute signed distance from center to plane
-    float s = glm::dot(normal, position) + d;
+    float s = dotproduct(normal, position) + d;
 
     // Calculate penetration depth
     float penetrationDepth = r - std::abs(s);
@@ -91,7 +92,7 @@ bool testSphereSphere(glm::vec3 center1, float radius1,
     glm::vec3 delta = center2 - center1;
 
     // Calculate squared distance between centers
-    float distanceSquared = glm::dot(delta, delta);
+    float distanceSquared = dotproduct(delta, delta);
 
     // Calculate sum of radii
     float radiusSum = radius1 + radius2;
@@ -128,9 +129,9 @@ bool testRaySphere(glm::vec3 rayOrigin, glm::vec3 rayDir,
 
     glm::vec3 m = rayOrigin - sphereCenter;
 
-    float a = glm::dot(rayDir, rayDir);
-    float b = 2.0f * glm::dot(rayDir, m);
-    float c = glm::dot(m, m) - radius * radius;
+    float a = dotproduct(rayDir, rayDir);
+    float b = 2.0f * dotproduct(rayDir, m);
+    float c = dotproduct(m, m) - radius * radius;
 
     // Calculate discriminant
     float discriminant = b * b - 4.0f * a * c;

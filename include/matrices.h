@@ -220,6 +220,20 @@ inline float dotproduct(glm::vec4 u, glm::vec4 v)
     return u1*v1 + u2*v2 + u3*v3;
 }
 
+// Produto escalar entre dois vetores vec3 definidos em um sistema de
+// coordenadas ortonormal.
+inline float dotproduct(glm::vec3 u, glm::vec3 v)
+{
+    float u1 = u.x;
+    float u2 = u.y;
+    float u3 = u.z;
+    float v1 = v.x;
+    float v2 = v.y;
+    float v3 = v.z;
+
+    return u1*v1 + u2*v2 + u3*v3;
+}
+
 // Matriz de mudança de coordenadas para o sistema de coordenadas da Câmera.
 inline glm::mat4 Matrix_Camera_View(glm::vec4 position_c, glm::vec4 view_vector, glm::vec4 up_vector)
 {
