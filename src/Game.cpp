@@ -24,7 +24,7 @@ Game::Game()
     , m_dragonAttackInterval(2.5f)
     , m_healthSpawnTimer(0.0f)
     , m_gameTime(0.0f)
-    , m_baseEnemySpeed(0.25f)
+    , m_baseEnemySpeed(0.4f)
 {
     m_pillars.push_back({glm::vec3(-3.0f, 0.0f, 1.2f), 0.25f, 3.0f});
     m_pillars.push_back({glm::vec3(-1.5f, 0.0f, 1.2f), 0.25f, 3.0f});
@@ -187,13 +187,13 @@ void Game::render(float deltaTime)
 
     case GameState::COUNTDOWN:
         {
-            float angle = (4.0f - m_countdownTimer) * 0.5f;
+            float progress = (4.0f - m_countdownTimer) / 4.0f;  
             float camHeight = 2.5f;
-            float camDist = 2.0f;
+            float camX = -3.5f + progress * 7.0f; 
             glm::vec4 camera_position = glm::vec4(
-                sin(angle) * camDist,
+                camX,
                 camHeight,
-                cos(angle) * camDist,
+                0.0f,
                 1.0f
             );
             glm::vec4 camera_lookat = glm::vec4(0.0f, 0.3f, 0.0f, 1.0f);
@@ -298,19 +298,16 @@ void Game::handleCollisions()
             float pushDirX = dx / dist;
             float pushDirZ = dz / dist;
 
-            float pushDistance = (collisionRadius - dist) / 2.0f + 0.1f;
+            float overlap = collisionRadius - dist;
+            float separation = (overlap / 2.0f) + 0.1f;
 
-            player_pos_3d.x += pushDirX * pushDistance;
-            player_pos_3d.z += pushDirZ * pushDistance;
+            player_pos_3d.x += pushDirX * separation;
+            player_pos_3d.z += pushDirZ * separation;
 
-            float enemyNewX = enemyPos4.x - pushDirX * pushDistance;
-            float enemyNewZ = enemyPos4.z - pushDirZ * pushDistance;
-            enemy.setPosition(enemyNewX, enemyNewZ);
+            float knockbackForce = 6.0f;
+            enemy.applyKnockback(-pushDirX, -pushDirZ, knockbackForce);
 
             m_player.updatePositionAfterCollision(player_pos_3d);
-
-            printf("Collision! Player and enemy pushed apart\n");
-            break;  
         }
     }
 
@@ -329,14 +326,13 @@ void Game::handleCollisions()
             float pushDirX = dx / dist;
             float pushDirZ = dz / dist;
 
-            float pushDistance = (bossCollisionRadius - dist) + 0.15f;
+            float overlap = bossCollisionRadius - dist;
+            float pushDistance = overlap + 0.01f;
 
             player_pos_3d.x += pushDirX * pushDistance;
             player_pos_3d.z += pushDirZ * pushDistance;
 
             m_player.updatePositionAfterCollision(player_pos_3d);
-
-            printf("Collision! Player pushed away from dragon\n");
         }
     }
 }
@@ -658,7 +654,7 @@ void Game::resetGame()
     m_enemyManager.clearEnemies();
     m_projectileManager.clear();
     m_healthPickups.clear();
-    m_dragonBoss = Enemy(0.0f, 0.7f, 1500);
+    m_dragonBoss = Enemy(-3.5f, 0.0f, 1500);
     m_dragonBossAlive = true;
     m_hitMarkerTimer = 0.0f;
     m_muzzleFlashTimer = 0.0f;
@@ -676,7 +672,7 @@ void Game::returnToMenu()
     m_enemyManager.clearEnemies();
     m_projectileManager.clear();
     m_healthPickups.clear();
-    m_dragonBoss = Enemy(0.0f, 0.7f, 1500);
+    m_dragonBoss = Enemy(-3.5f, 0.0f, 1500);
     m_dragonBossAlive = true;
     m_hitMarkerTimer = 0.0f;
     m_muzzleFlashTimer = 0.0f;

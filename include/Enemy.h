@@ -24,12 +24,15 @@ public:
     int getVida() const { return m_vida; }
     glm::vec4 getPosition() const { return glm::vec4(m_x, 0.101f, m_z, 1.0f); }
     void setPosition(float x, float z) { m_x = x; m_z = z; }
+    void applyKnockback(float dirX, float dirZ, float force);
 
 private:
     float m_x;
     float m_z;
     int m_vida;
     float m_enemySpeed;
+    float m_knockbackVelX;
+    float m_knockbackVelZ;
 
     glm::vec4 m_bezierP0;       
     glm::vec4 m_bezierP1;      

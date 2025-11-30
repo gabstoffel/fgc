@@ -8,7 +8,9 @@ Enemy::Enemy(float x, float z, int vida)
     : m_x(x)
     , m_z(z)
     , m_vida(vida)
-    , m_enemySpeed(0.25f) 
+    , m_enemySpeed(0.4f)
+    , m_knockbackVelX(0.0f)
+    , m_knockbackVelZ(0.0f)
     , m_bezierP0(x, 0.0f, z, 1.0f)
     , m_bezierP1(x, 0.0f, z, 1.0f)
     , m_bezierP2(x, 0.0f, z, 1.0f)
@@ -27,26 +29,46 @@ void Enemy::update(float deltaTime, const Player& player)
 {
     glm::vec4 playerPos = player.getPosition();
 
-    if (!m_curveInitialized) {
-        recalculateCurve(playerPos);
-        m_curveInitialized = true;
+    bool inKnockback = (m_knockbackVelX != 0.0f || m_knockbackVelZ != 0.0f);
+
+    if (inKnockback) {
+        m_x += m_knockbackVelX * deltaTime;
+        m_z += m_knockbackVelZ * deltaTime;
+
+        float decay = 8.0f * deltaTime;
+        m_knockbackVelX *= std::max(0.0f, 1.0f - decay);
+        m_knockbackVelZ *= std::max(0.0f, 1.0f - decay);
+
+        if (std::abs(m_knockbackVelX) < 0.05f && std::abs(m_knockbackVelZ) < 0.05f) {
+            m_knockbackVelX = 0.0f;
+            m_knockbackVelZ = 0.0f;
+            m_bezierP0 = glm::vec4(m_x, 0.0f, m_z, 1.0f);
+            m_bezierT = 0.0f;
+            m_curveRecalcTimer = 0.0f;
+            m_curveInitialized = false;
+        }
+    } else {
+        if (!m_curveInitialized) {
+            recalculateCurve(playerPos);
+            m_curveInitialized = true;
+        }
+
+        m_curveRecalcTimer -= deltaTime;
+
+        float distance = norm(m_bezierP3 - m_bezierP0);
+        if (distance > 0.001f) {
+            m_bezierT += (m_enemySpeed * deltaTime) / distance;
+        }
+
+        if (m_bezierT >= 1.0f || m_curveRecalcTimer <= 0.0f) {
+            m_bezierT = std::min(m_bezierT, 1.0f);
+            recalculateCurve(playerPos);
+        }
+
+        glm::vec4 newPos = evaluateBezier(m_bezierT);
+        m_x = newPos.x;
+        m_z = newPos.z;
     }
-
-    m_curveRecalcTimer -= deltaTime;
-
-    float distance = norm(m_bezierP3 - m_bezierP0);
-    if (distance > 0.001f) {
-        m_bezierT += (m_enemySpeed * deltaTime) / distance;
-    }
-
-    if (m_bezierT >= 1.0f || m_curveRecalcTimer <= 0.0f) {
-        m_bezierT = std::min(m_bezierT, 1.0f); 
-        recalculateCurve(playerPos);
-    }
-
-    glm::vec4 newPos = evaluateBezier(m_bezierT);
-    m_x = newPos.x;
-    m_z = newPos.z;
 
     const float arenaMinX = -4.2f;
     const float arenaMaxX = 4.2f;
@@ -147,11 +169,17 @@ void Enemy::takeDamage(int damage)
         m_vida = 0;
 }
 
+void Enemy::applyKnockback(float dirX, float dirZ, float force)
+{
+    m_knockbackVelX = dirX * force;
+    m_knockbackVelZ = dirZ * force;
+}
+
 EnemyManager::EnemyManager()
     : m_previousSecond(-1)
     , m_maxEnemies(2)
     , m_spawnInterval(5)
-    , m_enemySpeed(0.25f)
+    , m_enemySpeed(0.4f)
 {
 }
 
