@@ -68,7 +68,7 @@ public:
 private:
     void update(float deltaTime);
 
-    void render();
+    void render(float deltaTime);
 
     void handleCollisions();
 
@@ -121,4 +121,4 @@ private:
     float m_baseEnemySpeed;
 };
 
-#endif 
+#endif

@@ -49,16 +49,16 @@ public:
 
     bool init(GLFWwindow* window);
 
-    void renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive, const ProjectileManager* projectileManager = nullptr);
+    void renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive, float deltaTime, const ProjectileManager* projectileManager = nullptr);
 
     void renderArena();
-    void renderProjectiles(const ProjectileManager& projectileManager);
+    void renderProjectiles(const ProjectileManager& projectileManager, float deltaTime);
     void renderPlayer(const Player& player);
     void renderEnemies(const EnemyManager& enemyManager, const glm::vec4& playerPosition);
     void renderDragonBoss(const Enemy& dragon, bool isAlive, const glm::vec4& playerPosition);
     void renderPillars(const std::vector<Pillar>& pillars);
-    void renderHealthPickups(const std::vector<HealthPickup>& pickups);
-    void renderTorches(const std::vector<Torch>& torches);
+    void renderHealthPickups(const std::vector<HealthPickup>& pickups, float deltaTime);
+    void renderTorches(const std::vector<Torch>& torches, float deltaTime);
     void renderCrosshair(bool isFirstPerson);
     void renderHUD(const Player& player, const EnemyManager& enemies, const Enemy& boss, bool bossAlive);
     void renderMenu(int selectedDifficulty);
