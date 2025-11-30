@@ -11,6 +11,12 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 uniform int object_id;
+
+#define MAX_TORCHES 8
+uniform vec3 torch_positions[MAX_TORCHES];
+uniform vec3 torch_colors[MAX_TORCHES];
+uniform float torch_intensities[MAX_TORCHES];
+uniform int num_torches;
 // Atributos de vértice que serão gerados como saída ("out") pelo Vertex Shader.
 // ** Estes serão interpolados pelo rasterizador! ** gerando, assim, valores
 // para cada fragmento, os quais serão recebidos como entrada pelo Fragment
@@ -64,15 +70,14 @@ void main()
     normal = inverse(transpose(model)) * normal_coefficients;
     normal.w = 0.0;
     texcoords = texture_coefficients;
-    //Iluminação no vértice
     vec3 Kd;
     vec3 Ka;
     if(object_id >= 2 && object_id<= 7){
         vec4 n = normalize(normal);
-        vec4 l = normalize(vec4(1.0, 1.0, 0.5, 0.0));
-        float lambert = max(dot(n, l), 0.0);
-        vec3 I  = vec3(1.0,1.0,1.0);
-        vec3 Ia = vec3(0.2,0.2,0.2);
+        vec4 world_pos = model * model_coefficients;
+
+        vec3 Ia = vec3(0.10, 0.08, 0.05);
+
         if(object_id == PLANE){
             Kd = vec3(0.2,0.2,0.2);
             Ka = vec3(0.1,0.1,0.1);
@@ -81,7 +86,22 @@ void main()
             Kd = vec3(0.3,0.3,0.3);
             Ka = vec3(0.15,0.15,0.15);
         }
-        vertex_color = Ia*Ka+lambert*I*Kd;
+
+        vec3 diffuse = vec3(0.0);
+        for(int i = 0; i < num_torches; i++)
+        {
+            vec3 to_light = torch_positions[i] - world_pos.xyz;
+            float dist = length(to_light);
+            vec3 l = to_light / dist;
+
+            float attenuation = 1.0 / (1.0 + 0.7 * dist + 1.8 * dist * dist);
+
+            // Lambert diffuse (Gouraud - computed per vertex, then interpolated)
+            float NdotL = max(dot(n.xyz, l), 0.0);
+            diffuse += torch_colors[i] * NdotL * torch_intensities[i] * attenuation;
+        }
+
+        vertex_color = Ka * Ia + Kd * diffuse;
     }
     else
     {

@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
+#include <cmath>
 #include <stack>
 #include <set>
 #include <string>
@@ -87,6 +88,11 @@ bool Renderer::init(GLFWwindow* window)
     m_bbox_min_uniform   = glGetUniformLocation(m_gpuProgramID, "bbox_min");
     m_bbox_max_uniform   = glGetUniformLocation(m_gpuProgramID, "bbox_max");
 
+    m_torchPositionsUniform = glGetUniformLocation(m_gpuProgramID, "torch_positions");
+    m_torchColorsUniform = glGetUniformLocation(m_gpuProgramID, "torch_colors");
+    m_torchIntensitiesUniform = glGetUniformLocation(m_gpuProgramID, "torch_intensities");
+    m_numTorchesUniform = glGetUniformLocation(m_gpuProgramID, "num_torches");
+
     glUseProgram(m_gpuProgramID);
     //Inimigo
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage0"), 0);
@@ -106,6 +112,8 @@ bool Renderer::init(GLFWwindow* window)
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage7"), 7);
     //Projétil inimigo
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage8"), 8);
+    //Dragon
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage9"), 9);
     glUseProgram(0);
 
     m_vertexArrayObjectID = buildGeometry();
@@ -120,6 +128,7 @@ bool Renderer::init(GLFWwindow* window)
         LoadTextureImage("texturas/vida.png");
         LoadTextureImage("texturas/magica.jpg");
         LoadTextureImage("texturas/lava.png");
+        LoadTextureImage("texturas/textures-of-dragon-skin-and-lava-with-stones-free-vector.jpg");
 
         ObjModel monstermodel("modelos/monstro.obj");
         computeNormals(&monstermodel);
@@ -141,7 +150,7 @@ bool Renderer::init(GLFWwindow* window)
         computeNormals(&dragonmodel);
         buildTrianglesFromObj(&dragonmodel);
 
-        ObjModel varinhamodel("modelos/varinha.obj");
+        ObjModel varinhamodel("modelos/Varinha.obj");
         computeNormals(&varinhamodel);
         buildTrianglesFromObj(&varinhamodel);
 
@@ -368,10 +377,42 @@ void Renderer::renderHealthPickups(const std::vector<HealthPickup>& pickups, flo
     }
 }
 
+void Renderer::updateTorchLights(const std::vector<Torch>& torches, float flicker)
+{
+    float positions[24];  
+    float colors[24];    
+    float intensities[8];
+    int count = 0;
+
+    for (size_t i = 0; i < torches.size() && i < 8; i++)
+    {
+        if (!torches[i].active) continue;
+
+        positions[count*3]   = torches[i].position.x;
+        positions[count*3+1] = torches[i].position.y;
+        positions[count*3+2] = torches[i].position.z;
+
+        colors[count*3]   = 1.0f;
+        colors[count*3+1] = 0.55f;
+        colors[count*3+2] = 0.15f;
+
+        intensities[count] = 1.5f + 0.4f * sin(flicker + i * 1.5f);
+
+        count++;
+    }
+
+    glUniform3fv(m_torchPositionsUniform, count, positions);
+    glUniform3fv(m_torchColorsUniform, count, colors);
+    glUniform1fv(m_torchIntensitiesUniform, count, intensities);
+    glUniform1i(m_numTorchesUniform, count);
+}
+
 void Renderer::renderTorches(const std::vector<Torch>& torches, float deltaTime)
 {
     static float flicker = 0.0f;
     flicker += 2.5f*deltaTime;
+
+    updateTorchLights(torches, flicker);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);

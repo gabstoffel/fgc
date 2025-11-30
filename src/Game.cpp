@@ -9,7 +9,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 Game::Game()
-    : m_dragonBoss(-3.5f, 0.0f, 500)
+    : m_dragonBoss(-3.5f, 0.0f, 1500)
     , m_dragonBossAlive(true)
     , m_window(nullptr)
     , m_lastFrameTime(0.0)
@@ -468,7 +468,15 @@ void Game::handleDragonAttack(float deltaTime)
 void Game::handleHealthPickups(float deltaTime)
 {
     m_healthSpawnTimer += deltaTime;
-    if (m_healthSpawnTimer >= HEALTH_SPAWN_INTERVAL && m_healthPickups.size() < MAX_HEALTH_PICKUPS)
+
+    int currentHealth = m_player.getVida();
+    int maxHealth = m_player.getMaxVida();
+
+    bool lowHealth = currentHealth < (maxHealth / 2);
+
+    if (m_healthSpawnTimer >= HEALTH_SPAWN_INTERVAL &&
+        m_healthPickups.size() < MAX_HEALTH_PICKUPS &&
+        lowHealth)
     {
         m_healthSpawnTimer = 0.0f;
         spawnHealthPickup();
@@ -587,7 +595,7 @@ void Game::resetGame()
     m_enemyManager.clearEnemies();
     m_projectileManager.clear();
     m_healthPickups.clear();
-    m_dragonBoss = Enemy(0.0f, 0.7f, 500);
+    m_dragonBoss = Enemy(0.0f, 0.7f, 1500);
     m_dragonBossAlive = true;
     m_hitMarkerTimer = 0.0f;
     m_muzzleFlashTimer = 0.0f;
@@ -605,7 +613,7 @@ void Game::returnToMenu()
     m_enemyManager.clearEnemies();
     m_projectileManager.clear();
     m_healthPickups.clear();
-    m_dragonBoss = Enemy(0.0f, 0.7f, 500);
+    m_dragonBoss = Enemy(0.0f, 0.7f, 1500);
     m_dragonBossAlive = true;
     m_hitMarkerTimer = 0.0f;
     m_muzzleFlashTimer = 0.0f;

@@ -59,6 +59,7 @@ public:
     void renderPillars(const std::vector<Pillar>& pillars);
     void renderHealthPickups(const std::vector<HealthPickup>& pickups, float deltaTime);
     void renderTorches(const std::vector<Torch>& torches, float deltaTime);
+    void updateTorchLights(const std::vector<Torch>& torches, float flicker);
     void renderCrosshair(bool isFirstPerson);
     void renderHUD(const Player& player, const EnemyManager& enemies, const Enemy& boss, bool bossAlive);
     void renderMenu(int selectedDifficulty);
@@ -100,6 +101,11 @@ private:
     GLint m_objectIdUniform;
     GLint m_bbox_min_uniform;
     GLint m_bbox_max_uniform;
+
+    GLint m_torchPositionsUniform;
+    GLint m_torchColorsUniform;
+    GLint m_torchIntensitiesUniform;
+    GLint m_numTorchesUniform;
 
     GLuint m_NumLoadedTextures = 0;
     std::map<std::string, SceneObject> m_virtualScene;

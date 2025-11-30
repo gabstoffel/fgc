@@ -99,14 +99,23 @@ void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, i
         (key == GLFW_KEY_K) ? "true" : "false");
 
     if (s_game == nullptr)
+    {
+        printf("[Input] s_game is nullptr!\n");
         return;
+    }
 
     GameState gameState = s_game->getGameState();
 
+    printf("[Input] GameState=%d, key=%d, action=%d, GLFW_KEY_1=%d, GLFW_PRESS=%d\n",
+           (int)gameState, key, action, GLFW_KEY_1, GLFW_PRESS);
+    fflush(stdout);
+
     if (gameState == GameState::MENU && action == GLFW_PRESS)
     {
+        printf("[Input] In MENU, checking key...\n");
         if (key == GLFW_KEY_1)
         {
+            printf("[Input] Starting game with difficulty 0\n");
             s_game->setDifficulty(0);
             s_game->startGame();
             return;

@@ -44,6 +44,14 @@ uniform sampler2D TextureImage5;
 uniform sampler2D TextureImage6;
 uniform sampler2D TextureImage7;
 uniform sampler2D TextureImage8;
+uniform sampler2D TextureImage9;
+
+#define MAX_TORCHES 8
+uniform vec3 torch_positions[MAX_TORCHES];
+uniform vec3 torch_colors[MAX_TORCHES];
+uniform float torch_intensities[MAX_TORCHES];
+uniform int num_torches;
+
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec4 color;
 
@@ -72,6 +80,62 @@ float norm(vec4 v)
     return sqrt( vx*vx + vy*vy + vz*vz );
 }
 
+vec3 calculateTorchLighting(vec4 fragPos, vec4 normal, vec4 viewDir,
+                            vec3 Kd, vec3 Ks, float shininess)
+{
+    vec3 totalLight = vec3(0.0);
+
+    for (int i = 0; i < num_torches; i++)
+    {
+        vec3 lightPos = torch_positions[i];
+        vec3 lightColor = torch_colors[i];
+        float intensity = torch_intensities[i];
+
+        vec4 lightDir = vec4(lightPos, 1.0) - fragPos;
+        float distance = length(lightDir.xyz);
+        lightDir = normalize(lightDir);
+
+        float attenuation = 1.0 / (1.0 + 0.7 * distance + 1.8 * distance * distance);
+
+        // Diffuse (Lambert)
+        float NdotL = max(dot(normal, lightDir), 0.0);
+        vec3 diffuse = Kd * lightColor * NdotL * intensity * attenuation;
+
+        // Specular (Blinn-Phong)
+        vec4 halfwayDir = normalize(lightDir + viewDir);
+        float NdotH = max(dot(normal, halfwayDir), 0.0);
+        vec3 specular = Ks * lightColor * pow(NdotH, shininess) * intensity * attenuation;
+
+        totalLight += diffuse + specular;
+    }
+
+    return totalLight;
+}
+
+vec3 calculateTorchLightingDiffuseOnly(vec4 fragPos, vec4 normal, vec3 Kd)
+{
+    vec3 totalLight = vec3(0.0);
+
+    for (int i = 0; i < num_torches; i++)
+    {
+        vec3 lightPos = torch_positions[i];
+        vec3 lightColor = torch_colors[i];
+        float intensity = torch_intensities[i];
+
+        vec4 lightDir = vec4(lightPos, 1.0) - fragPos;
+        float distance = length(lightDir.xyz);
+        lightDir = normalize(lightDir);
+
+        float attenuation = 1.0 / (1.0 + 0.7 * distance + 1.8 * distance * distance);
+
+        // Lambert 
+        float NdotL = max(dot(normal, lightDir), 0.0);
+        totalLight += Kd * lightColor * NdotL * intensity * attenuation;
+    }
+
+    return totalLight;
+}
+
 void main()
 {
     // Obtemos a posição da câmera utilizando a inversa da matriz que define o
@@ -81,8 +145,7 @@ void main()
     // Espectro da fonte de iluminação
     vec3 I = vec3(1.2,1.2,1.2);
 
-    // Espectro da luz ambiente
-    vec3 Ia = vec3(0.35,0.35,0.35);
+    vec3 Ia = vec3(0.10, 0.08, 0.05);
     // O fragmento atual é coberto por um ponto que percente à superfície de um
     // dos objetos virtuais da cena. Este ponto, p, possui uma posição no
     // sistema de coordenadas global (World coordinates). Esta posição é obtida
@@ -155,11 +218,13 @@ void main()
 
     if (object_id == MONSTRO)
     {
-        q=64;
         vec3 pele = texture(TextureImage0, vec2(U,V)).rgb;
-        float lambert = max(0,dot(n,l));
-        float phong = pow(max(0,dot(r,v)),q);
-        color.rgb = pele*lambert*I+pele*Ia+phong*I;
+        vec3 Kd_monster = pele;
+        vec3 Ks_monster = vec3(0.2);
+        vec3 Ka_monster = pele;
+
+        vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_monster, Ks_monster, 64.0);
+        color.rgb = Ka_monster * Ia + pointLighting;
     }
     else if(object_id >= 2 && object_id<= 7)
     {
@@ -179,25 +244,31 @@ void main()
         color.rgb=vertex_color*tex;
     }
     else if(object_id == CUBE){
-        q=128;
         vec3 corpo = texture(TextureImage4, vec2(U,V)).rgb;
-        float lambert = max(0,dot(n,l));
-        float blinn_phong = pow(max(0,dot(n,h)),q);
-        color.rgb = corpo*lambert*I+corpo*Ia+blinn_phong*I;
+        vec3 Kd_player = corpo;
+        vec3 Ks_player = vec3(0.3);
+        vec3 Ka_player = corpo;
+
+        vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_player, Ks_player, 128.0);
+        color.rgb = Ka_player * Ia + pointLighting;
     }
     else if(object_id == VARINHA){
-        q=32;
         vec3 varinha = texture(TextureImage5, vec2(U,V)).rgb;
-        float lambert = max(0,dot(n,l));
-        float blinn_phong = pow(max(0,dot(n,h)),q);
-        color.rgb = varinha*lambert*I+varinha*Ia+blinn_phong*I;
+        vec3 Kd_wand = varinha;
+        vec3 Ks_wand = vec3(0.4);
+        vec3 Ka_wand = varinha;
+
+        vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_wand, Ks_wand, 32.0);
+        color.rgb = Ka_wand * Ia + pointLighting;
     }
     else if(object_id == DRAGON_BOSS){
-        q=64;
-        vec3 dragon_tex = texture(TextureImage0, vec2(U,V)).rgb;
-        float lambert = max(0,dot(n,l));
-        float phong = pow(max(0,dot(r,v)),q);
-        color.rgb = dragon_tex*lambert*I+dragon_tex*Ia+phong*I;
+        vec3 dragon_tex = texture(TextureImage9, vec2(U,V)).rgb;
+        vec3 Kd_dragon = dragon_tex;
+        vec3 Ks_dragon = vec3(0.4);  // Shiny scales
+        vec3 Ka_dragon = dragon_tex;
+
+        vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_dragon, Ks_dragon, 64.0);
+        color.rgb = Ka_dragon * Ia + pointLighting;
     }
     else if(object_id == PROJECTILE)
     {
@@ -208,11 +279,14 @@ void main()
         float arcsen = asin(vetor_centro.y/raio);
         U = (arcotangente+M_PI)/(2*M_PI);
         V = (arcsen+M_PI/2)/M_PI;
-        q=64;
+
         vec3 magic = texture(TextureImage7, vec2(U,V)).rgb;
-        float lambert = max(0,dot(n,l));
-        float phong = pow(max(0,dot(r,v)),q);
-        color.rgb = magic*lambert*I+magic*Ia+phong*I;
+        vec3 Kd_proj = magic;
+        vec3 Ks_proj = vec3(0.3);
+        vec3 Ka_proj = magic;
+
+        vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_proj, Ks_proj, 64.0);
+        color.rgb = Ka_proj * Ia + pointLighting;
     }
     else if(object_id == PROJECTILE_TRAIL)
     {
@@ -220,18 +294,21 @@ void main()
     }
     else if(object_id == ENEMY_PROJECTILE)
     {
-       vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
+        vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
         vec4 vetor_centro = position_model-bbox_center;
         float raio = length(vetor_centro);
         float arcotangente = atan(vetor_centro.x,vetor_centro.z);
         float arcsen = asin(vetor_centro.y/raio);
         U = (arcotangente+M_PI)/(2*M_PI);
         V = (arcsen+M_PI/2)/M_PI;
-        q=64;
+
         vec3 fire = texture(TextureImage8, vec2(U,V)).rgb;
-        float lambert = max(0,dot(n,l));
-        float phong = pow(max(0,dot(r,v)),q);
-        color.rgb = fire*lambert*I+fire*Ia+phong*I;
+        vec3 Kd_enemy_proj = fire;
+        vec3 Ks_enemy_proj = vec3(0.3);
+        vec3 Ka_enemy_proj = fire;
+
+        vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_enemy_proj, Ks_enemy_proj, 64.0);
+        color.rgb = Ka_enemy_proj * Ia + pointLighting;
     }
     else if(object_id == ENEMY_PROJECTILE_TRAIL)
     {
@@ -255,18 +332,23 @@ void main()
         }
 
         vec3 tex = texture(TextureImage1, vec2(pillarU, pillarV)).rgb;
-        float lambert = max(0, dot(n, l));
-        color.rgb = tex * lambert * I + tex * Ia;
+        vec3 Kd_pillar = tex;
+        vec3 Ka_pillar = tex;
+
+        vec3 pointLighting = calculateTorchLightingDiffuseOnly(p, n, Kd_pillar);
+        color.rgb = Ka_pillar * Ia + pointLighting;
     }
     else if(object_id == HEALTH_PICKUP)
     {
-        q=4;
         U = texcoords.x;
         V = texcoords.y;
         vec3 health_tex = texture(TextureImage6, vec2(U,V)).rgb;
-        float lambert = max(0,dot(n,l));
-        float phong = pow(max(0,dot(r,v)),q);
-        color.rgb = health_tex*lambert*I+health_tex*Ia+phong*I;
+        vec3 Kd_health = health_tex;
+        vec3 Ks_health = vec3(0.2);
+        vec3 Ka_health = health_tex;
+
+        vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_health, Ks_health, 4.0);
+        color.rgb = Ka_health * Ia + pointLighting;
     }
     else if(object_id == TORCH)
     {
