@@ -614,6 +614,7 @@ void Game::setShouldClose(bool shouldClose)
 void Game::setDifficulty(int difficulty)
 {
     m_difficulty = difficulty;
+    m_enemyManager.setDifficulty(difficulty);
 
     switch (difficulty)
     {

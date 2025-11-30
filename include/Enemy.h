@@ -65,6 +65,8 @@ public:
     void setEnemySpeed(float speed) { m_enemySpeed = speed; }
     void setMaxEnemies(int maxEnemies) { m_maxEnemies = maxEnemies; }
     void clearEnemies() { m_enemies.clear(); m_previousSecond = -1; }
+    void setDifficulty(int difficulty) { m_difficulty = difficulty; }
+    int getRandomEnemyHP();
 
 private:
     std::vector<Enemy> m_enemies;
@@ -72,6 +74,7 @@ private:
     int m_maxEnemies;
     int m_spawnInterval;
     float m_enemySpeed;
+    int m_difficulty;
 };
 
 #endif 

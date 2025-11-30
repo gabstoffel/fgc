@@ -36,9 +36,15 @@ public:
     bool isDead() const { return m_vida <= 0; }
     void setVida(int vida, int maxVida);
     void reset();
+    void jump();
 
 private:
     glm::vec4 m_position;
+
+    float m_velocityY;
+    float m_gravity;
+    float m_jumpForce;
+    bool m_isGrounded;
 
     bool m_firstPerson;
 

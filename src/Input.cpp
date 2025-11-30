@@ -165,6 +165,13 @@ void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, i
     if (gameState != GameState::PLAYING)
         return;
 
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    {
+        if (s_player != nullptr)
+            s_player->jump();
+        return;
+    }
+
     if (key == GLFW_KEY_F && action == GLFW_PRESS)
     {
         Logger::logEvent("Input.keyCallback.F_pressed", "{}");

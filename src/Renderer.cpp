@@ -128,7 +128,7 @@ bool Renderer::init(GLFWwindow* window)
         LoadTextureImage("texturas/vida.png");
         LoadTextureImage("texturas/magica.jpg");
         LoadTextureImage("texturas/lava.png");
-        LoadTextureImage("texturas/textures-of-dragon-skin-and-lava-with-stones-free-vector.jpg");
+        LoadTextureImage("texturas/lava.jpg"); //Dragon 
 
         ObjModel monstermodel("modelos/monstro.obj");
         computeNormals(&monstermodel);

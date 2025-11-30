@@ -180,7 +180,29 @@ EnemyManager::EnemyManager()
     , m_maxEnemies(2)
     , m_spawnInterval(5)
     , m_enemySpeed(0.4f)
+    , m_difficulty(1)
 {
+}
+
+int EnemyManager::getRandomEnemyHP()
+{
+    int roll = rand() % 100;
+    int easyChance, mediumChance;
+
+    switch (m_difficulty) {
+        case 0: easyChance = 70; mediumChance = 95; break;  
+        case 1: easyChance = 33; mediumChance = 67; break;  
+        case 2: easyChance = 5;  mediumChance = 30; break;  /
+        default: easyChance = 33; mediumChance = 67; break;
+    }
+
+    if (roll < easyChance) {
+        return 200 + rand() % 101;  // 200-300 HP 
+    } else if (roll < mediumChance) {
+        return 400 + rand() % 101;  // 400-500 HP 
+    } else {
+        return 600 + rand() % 101;  // 600-700 HP 
+    }
 }
 
 EnemyManager::~EnemyManager()
@@ -207,7 +229,8 @@ void EnemyManager::spawnEnemy(const glm::vec4& playerPosition)
         z_aleatorio = 2.0f * rand() / (static_cast<float>(RAND_MAX)) - 1.0f;
     }
 
-    Enemy novo_inimigo(x_aleatorio, z_aleatorio, 100);
+    int enemyHP = getRandomEnemyHP();
+    Enemy novo_inimigo(x_aleatorio, z_aleatorio, enemyHP);
     m_enemies.push_back(novo_inimigo);
 }
 
