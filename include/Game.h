@@ -20,7 +20,7 @@ struct HealthPickup
 struct Pillar
 {
     glm::vec3 position;
-    float radius;
+    float sizeXZ;
     float height;
 };
 

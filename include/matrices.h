@@ -156,6 +156,16 @@ inline float norm(glm::vec4 v)
     return sqrt( vx*vx + vy*vy + vz*vz );
 }
 
+// Função que calcula a norma Euclidiana de um vetor cujos coeficientes são
+// definidos em uma base ortonormal qualquer.
+inline float norm(glm::vec3 v)
+{
+    float vx = v.x;
+    float vy = v.y;
+    float vz = v.z;
+
+    return sqrt( vx*vx + vy*vy + vz*vz );
+}
 // Matriz R de "rotação de um ponto" em relação à origem do sistema de
 // coordenadas e em torno do eixo definido pelo vetor 'axis'. Esta matriz pode
 // ser definida pela fórmula de Rodrigues. Lembre-se que o vetor que define o
