@@ -9,7 +9,7 @@
 #include "Enemy.h"
 #include "Renderer.h"
 #include "Projectile.h"
-
+#include "sfx.h"
 struct HealthPickup
 {
     glm::vec3 position;
@@ -113,11 +113,11 @@ private:
     float m_healthSpawnTimer;
     static constexpr float HEALTH_SPAWN_INTERVAL = 10.0f;
     static constexpr int MAX_HEALTH_PICKUPS = 3;
-
+    bool result_sfx;
+    bool menu_music;
     std::vector<Pillar> m_pillars;
 
     std::vector<Torch> m_torches;
-
     float m_gameTime;
     float m_baseEnemySpeed;
 };
