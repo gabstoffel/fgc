@@ -1,6 +1,7 @@
 #include "Enemy.h"
 #include "Player.h"
 #include "matrices.h"
+#include "sfx.h"
 #include <cmath>
 #include <cstdlib>
 
@@ -96,10 +97,10 @@ void Enemy::recalculateCurve(const glm::vec4& playerPos)
         currentVelocity = evaluateBezierDerivative(m_bezierT);
     }
 
-    // P0 
+    // P0
     m_bezierP0 = glm::vec4(m_x, 0.0f, m_z, 1.0f);
 
-    // P3 
+    // P3
     m_bezierP3 = glm::vec4(playerPos.x, 0.0f, playerPos.z, 1.0f);
 
     glm::vec4 toTarget = m_bezierP3 - m_bezierP0;
@@ -116,11 +117,11 @@ void Enemy::recalculateCurve(const glm::vec4& playerPos)
         float side1 = (rand() % 2 == 0) ? 1.0f : -1.0f;
         float side2 = -side1; // garante que os pontos vão ficar em lados opostos
 
-        float offset1 = 0.3f + ((float)rand() / RAND_MAX) * 0.2f; 
+        float offset1 = 0.3f + ((float)rand() / RAND_MAX) * 0.2f;
         m_bezierP1 = m_bezierP0 + dir * (distance * 0.33f)
                    + perp * (side1 * distance * offset1);
 
-        float offset2 = 0.3f + ((float)rand() / RAND_MAX) * 0.2f; 
+        float offset2 = 0.3f + ((float)rand() / RAND_MAX) * 0.2f;
         m_bezierP2 = m_bezierP0 + dir * (distance * 0.66f)
                    + perp * (side2 * distance * offset2);
     }
@@ -175,6 +176,9 @@ void Enemy::takeDamage(int damage)
     m_vida -= damage;
     if (m_vida < 0)
         m_vida = 0;
+    else{
+        sfx.hit_monstro();
+    }
 }
 
 void Enemy::applyKnockback(float dirX, float dirZ, float force)
@@ -189,6 +193,7 @@ void Enemy::startDying()
     {
         m_dying = true;
         m_deathTimer = 0.0f;
+        sfx.morte_monstro();
     }
 }
 
@@ -225,18 +230,18 @@ int EnemyManager::getRandomEnemyHP()
     int easyChance, mediumChance;
 
     switch (m_difficulty) {
-        case 0: easyChance = 70; mediumChance = 95; break;  
-        case 1: easyChance = 33; mediumChance = 67; break;  
+        case 0: easyChance = 70; mediumChance = 95; break;
+        case 1: easyChance = 33; mediumChance = 67; break;
         case 2: easyChance = 5;  mediumChance = 30; break;
         default: easyChance = 33; mediumChance = 67; break;
     }
 
     if (roll < easyChance) {
-        return 200 + rand() % 101;  // 200-300 HP 
+        return 200 + rand() % 101;  // 200-300 HP
     } else if (roll < mediumChance) {
-        return 400 + rand() % 101;  // 400-500 HP 
+        return 400 + rand() % 101;  // 400-500 HP
     } else {
-        return 600 + rand() % 101;  // 600-700 HP 
+        return 600 + rand() % 101;  // 600-700 HP
     }
 }
 

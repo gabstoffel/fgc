@@ -1,6 +1,7 @@
 #include "Player.h"
 #include "matrices.h"
 #include "Logger.h"
+#include "sfx.h"
 #include <cmath>
 
 Player::Player()
@@ -279,6 +280,7 @@ void Player::takeDamage(int damage)
     if (m_damageCooldownTimer <= 0.0f)
     {
         m_vida -= damage;
+        sfx.hit_player();
         if (m_vida < 0)
             m_vida = 0;
         m_damageCooldownTimer = m_damageCooldown;
@@ -291,6 +293,7 @@ void Player::heal(int amount)
     m_vida += amount;
     if (m_vida > m_maxVida)
         m_vida = m_maxVida;
+    sfx.cura();
     printf("[Player] Healed %d HP! HP: %d/%d\n", amount, m_vida, m_maxVida);
 }
 

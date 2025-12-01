@@ -2,6 +2,7 @@
 #include "Input.h"
 #include "matrices.h"
 #include "collisions.h"
+#include "sfx.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -91,7 +92,6 @@ bool Game::init()
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
     Input::init(&m_player, this);
-
     if (!m_renderer.init(m_window))
     {
         fprintf(stderr, "ERROR: Renderer initialization failed.\n");
@@ -99,7 +99,8 @@ bool Game::init()
     }
 
     m_lastFrameTime = glfwGetTime();
-
+    sfx.start();
+    menu_music=true;
     return true;
 }
 
@@ -145,7 +146,7 @@ void Game::update(float deltaTime)
     m_enemyManager.trySpawnEnemy(segundos, m_player.getPosition());
     m_player.update(m_window, deltaTime);
     m_enemyManager.update(deltaTime, m_player);
-    handleEnemyEnvironmentCollisions(); 
+    handleEnemyEnvironmentCollisions();
     handleCollisions();
     handleShooting();
     handleDebugKillKey();
@@ -168,12 +169,20 @@ void Game::update(float deltaTime)
     {
         m_gameState = GameState::GAME_OVER;
         glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        if (result_sfx){
+            sfx.game_over();
+            result_sfx=false;
+        }
     }
 
     if (!m_dragonBossAlive)
     {
         m_gameState = GameState::WIN;
         glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        if (result_sfx){
+            sfx.vitoria();
+            result_sfx=false;
+        }
     }
 }
 
@@ -182,14 +191,18 @@ void Game::render(float deltaTime)
     switch (m_gameState)
     {
     case GameState::MENU:
+        if(menu_music){
+            sfx.musicaPrincipalStart("sfx/menu.mp3", true);
+            menu_music=false;
+        }
         m_renderer.renderMenu(m_difficulty);
         break;
 
     case GameState::COUNTDOWN:
         {
-            float progress = (4.0f - m_countdownTimer) / 4.0f;  
+            float progress = (4.0f - m_countdownTimer) / 4.0f;
             float camHeight = 2.5f;
-            float camX = -3.5f + progress * 7.0f; 
+            float camX = -3.5f + progress * 7.0f;
             glm::vec4 camera_position = glm::vec4(
                 camX,
                 camHeight,
@@ -242,10 +255,12 @@ void Game::render(float deltaTime)
 
     case GameState::GAME_OVER:
         m_renderer.renderGameOver();
+        sfx.musicaPrincipalStop();
         break;
 
     case GameState::WIN:
         m_renderer.renderWin();
+        sfx.musicaPrincipalStop();
         break;
     }
 }
@@ -600,6 +615,7 @@ void Game::updateEnemySpeed(float deltaTime)
 
 void Game::cleanup()
 {
+    sfx.stop();
     glfwTerminate();
 }
 
@@ -641,6 +657,10 @@ void Game::setDifficulty(int difficulty)
 
 void Game::startGame()
 {
+    result_sfx=true;
+    menu_music=true;
+    sfx.musicaPrincipalStop();
+    sfx.musicaPrincipalStart("sfx/main.mp3", true);
     m_gameState = GameState::COUNTDOWN;
     m_countdownTimer = 4.0f;
     m_lastFrameTime = glfwGetTime();

@@ -1,4 +1,5 @@
 #include "Projectile.h"
+#include "sfx.h"
 #include <cmath>
 
 ProjectileManager::ProjectileManager()
@@ -17,7 +18,12 @@ ProjectileManager::~ProjectileManager()
 void ProjectileManager::spawnProjectile(const glm::vec3& origin, const glm::vec3& direction, bool isEnemy)
 {
     float speed = isEnemy ? m_enemyProjectileSpeed : m_projectileSpeed;
-
+    if(!isEnemy){
+        sfx.tiro_player();
+    }
+    else{
+        sfx.fireball();
+    }
     if (m_projectiles.size() >= m_maxProjectiles)
     {
         for (size_t i = 0; i < m_projectiles.size(); i++)
