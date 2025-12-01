@@ -64,7 +64,15 @@ bool resolveAABBPlane(glm::vec3& position, glm::vec3 extents, glm::vec4 plane) {
     return true; // Collision was resolved
 }
 
+bool testAABBAABB(const glm::vec3& minA, const glm::vec3& maxA,const glm::vec3& minB, const glm::vec3& maxB)
+{
+    return (minA.x <= maxB.x && maxA.x >= minB.x) &&(minA.y <= maxB.y && maxA.y >= minB.y) &&(minA.z <= maxB.z && maxA.z >= minB.z);
+}
 
+bool testPointSphere(const glm::vec3& point, const glm::vec3& sphereCenter, float sphereRadius) {
+    float distSq = norm(point - sphereCenter)*norm(point - sphereCenter);
+    return distSq <= sphereRadius * sphereRadius;
+}
 
 void clampPositionToBox(glm::vec3& position, glm::vec3 minBounds, glm::vec3 maxBounds) {
     position.x = std::max(minBounds.x, std::min(position.x, maxBounds.x));

@@ -27,17 +27,17 @@ Game::Game()
     , m_gameTime(0.0f)
     , m_baseEnemySpeed(0.4f)
 {
-    m_pillars.push_back({glm::vec3(-3.0f, 0.0f, 1.2f), 0.25f, 3.0f});
-    m_pillars.push_back({glm::vec3(-1.5f, 0.0f, 1.2f), 0.25f, 3.0f});
-    m_pillars.push_back({glm::vec3(0.0f, 0.0f, 1.2f), 0.25f, 3.0f});
-    m_pillars.push_back({glm::vec3(1.5f, 0.0f, 1.2f), 0.25f, 3.0f});
-    m_pillars.push_back({glm::vec3(3.0f, 0.0f, 1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(-3.0f, 0.0f, 1.2f), 0.5f, 3.0f});
+    m_pillars.push_back({glm::vec3(-1.5f, 0.0f, 1.2f), 0.5f, 3.0f});
+    m_pillars.push_back({glm::vec3(0.0f, 0.0f, 1.2f), 0.5f, 3.0f});
+    m_pillars.push_back({glm::vec3(1.5f, 0.0f, 1.2f), 0.5f, 3.0f});
+    m_pillars.push_back({glm::vec3(3.0f, 0.0f, 1.2f), 0.5f, 3.0f});
 
-    m_pillars.push_back({glm::vec3(-3.0f, 0.0f, -1.2f), 0.25f, 3.0f});
-    m_pillars.push_back({glm::vec3(-1.5f, 0.0f, -1.2f), 0.25f, 3.0f});
-    m_pillars.push_back({glm::vec3(0.0f, 0.0f, -1.2f), 0.25f, 3.0f});
-    m_pillars.push_back({glm::vec3(1.5f, 0.0f, -1.2f), 0.25f, 3.0f});
-    m_pillars.push_back({glm::vec3(3.0f, 0.0f, -1.2f), 0.25f, 3.0f});
+    m_pillars.push_back({glm::vec3(-3.0f, 0.0f, -1.2f), 0.5f, 3.0f});
+    m_pillars.push_back({glm::vec3(-1.5f, 0.0f, -1.2f), 0.5f, 3.0f});
+    m_pillars.push_back({glm::vec3(0.0f, 0.0f, -1.2f), 0.5f, 3.0f});
+    m_pillars.push_back({glm::vec3(1.5f, 0.0f, -1.2f), 0.5f, 3.0f});
+    m_pillars.push_back({glm::vec3(3.0f, 0.0f, -1.2f), 0.5f, 3.0f});
 
     m_torches.push_back({glm::vec3(-2.25f, 1.5f, 1.3f), true});
     m_torches.push_back({glm::vec3(-0.75f, 1.5f, 1.3f), true});
@@ -267,7 +267,7 @@ void Game::render(float deltaTime)
 
 void Game::handleCollisions()
 {
-    glm::vec3 player_extents = glm::vec3(0.1f, 0.1f, 0.1f);
+    glm::vec3 player_extents = glm::vec3(0.108f, 0.108f, 0.108f);
     glm::vec4 player_pos_4d = m_player.getPosition();
     glm::vec3 player_pos_3d = glm::vec3(player_pos_4d.x, player_pos_4d.y, player_pos_4d.z);
 
@@ -278,49 +278,77 @@ void Game::handleCollisions()
     glm::vec3 arena_max = glm::vec3(4.3f, 10.0f, 1.3f);
     clampPositionToBox(player_pos_3d, arena_min, arena_max);
 
-    float playerRadius = 0.1f;
     for (const Pillar& pillar : m_pillars)
     {
-        float dx = player_pos_3d.x - pillar.position.x;
-        float dz = player_pos_3d.z - pillar.position.z;
-        float dist = sqrt(dx * dx + dz * dz);
-        float minDist = pillar.radius + playerRadius;
-
-        if (dist < minDist && dist > 0.001f)
+        glm::vec3 pillarExtents(pillar.sizeXZ * 0.5f, pillar.height * 0.5f, pillar.sizeXZ * 0.5f);
+        glm::vec3 pillarCenter = glm::vec3(pillar.position.x,pillar.position.y + pillarExtents.y,pillar.position.z);
+        glm::vec3 pillarMin = pillarCenter - pillarExtents;
+        glm::vec3 pillarMax = pillarCenter + pillarExtents;
+        glm::vec3 playerMin = player_pos_3d - player_extents;
+        glm::vec3 playerMax = player_pos_3d + player_extents;
+        if (testAABBAABB(playerMin, playerMax, pillarMin, pillarMax))
         {
-            float pushFactor = (minDist - dist) / dist;
-            player_pos_3d.x += dx * pushFactor;
-            player_pos_3d.z += dz * pushFactor;
+            glm::vec3 overlapMin = pillarMax - playerMin;
+            glm::vec3 overlapMax = playerMax - pillarMin;
+
+            float resolveX = std::min(overlapMin.x, overlapMax.x);
+            float resolveY = std::min(overlapMin.y, overlapMax.y);
+            float resolveZ = std::min(overlapMin.z, overlapMax.z);
+
+            // Empurrar no eixo de menor penetração
+            if (resolveX < resolveY && resolveX < resolveZ)
+                player_pos_3d.x += (player_pos_3d.x < pillarCenter.x ? -resolveX : resolveX);
+            else if (resolveY < resolveZ)
+                player_pos_3d.y += (player_pos_3d.y < pillarCenter.y ? -resolveY : resolveY);
+            else
+                player_pos_3d.z += (player_pos_3d.z < pillarCenter.z ? -resolveZ : resolveZ);
         }
     }
 
     m_player.updatePositionAfterCollision(player_pos_3d);
 
     std::vector<Enemy>& enemies = const_cast<std::vector<Enemy>&>(m_enemyManager.getEnemies());
-    float collisionRadius = 0.25f;
+    float enemyRadius = 0.10f;
+    glm::vec3 enemyExtents(enemyRadius, enemyRadius, enemyRadius);
+
+    glm::vec3 playerMin = player_pos_3d - player_extents;
+    glm::vec3 playerMax = player_pos_3d + player_extents;
 
     for (Enemy& enemy : enemies)
     {
         glm::vec4 enemyPos4 = enemy.getPosition();
-        float dx = player_pos_3d.x - enemyPos4.x;
-        float dz = player_pos_3d.z - enemyPos4.z;
-        float dist = sqrt(dx * dx + dz * dz);
+        glm::vec3 enemyPos(enemyPos4.x, enemyPos4.y, enemyPos4.z);
 
-        if (dist < collisionRadius && dist > 0.001f)
+        glm::vec3 enemyMin = enemyPos - enemyExtents;
+        glm::vec3 enemyMax = enemyPos + enemyExtents;
+
+        if (testAABBAABB(playerMin, playerMax, enemyMin, enemyMax))
         {
+            // Registrar dano
             m_player.takeDamage(m_enemyDamage);
 
-            float pushDirX = dx / dist;
-            float pushDirZ = dz / dist;
+            glm::vec3 overlapMin = enemyMax - playerMin;
+            glm::vec3 overlapMax = playerMax - enemyMin;
 
-            float overlap = collisionRadius - dist;
-            float separation = (overlap / 2.0f) + 0.1f;
+            float resolveX = std::min(overlapMin.x, overlapMax.x);
+            float resolveY = std::min(overlapMin.y, overlapMax.y);
+            float resolveZ = std::min(overlapMin.z, overlapMax.z);
 
-            player_pos_3d.x += pushDirX * separation;
-            player_pos_3d.z += pushDirZ * separation;
+            // Empurrar Player para fora
+            if (resolveX < resolveY && resolveX < resolveZ)
+                player_pos_3d.x += (player_pos_3d.x < enemyPos.x ? -resolveX : resolveX);
+            else if (resolveY < resolveZ)
+                player_pos_3d.y += (player_pos_3d.y < enemyPos.y ? -resolveY : resolveY);
+            else
+                player_pos_3d.z += (player_pos_3d.z < enemyPos.z ? -resolveZ : resolveZ);
 
-            float knockbackForce = 6.0f;
-            enemy.applyKnockback(-pushDirX, -pushDirZ, knockbackForce);
+            // Atualiza AABB do player após correção
+            playerMin = player_pos_3d - player_extents;
+            playerMax = player_pos_3d + player_extents;
+
+            // Knockback no enemy
+            glm::vec3 pushDir = (enemyPos - player_pos_3d)/norm(enemyPos - player_pos_3d);
+            enemy.applyKnockback(pushDir.x, pushDir.z, 6.0f);
 
             m_player.updatePositionAfterCollision(player_pos_3d);
         }
@@ -328,25 +356,27 @@ void Game::handleCollisions()
 
     if (m_dragonBossAlive)
     {
-        glm::vec4 dragonPos = m_dragonBoss.getPosition();
-        float dx = player_pos_3d.x - dragonPos.x;
-        float dz = player_pos_3d.z - dragonPos.z;
-        float dist = sqrt(dx * dx + dz * dz);
-        float bossCollisionRadius = 0.35f;
+        glm::vec4 dragonPos4 = m_dragonBoss.getPosition();
+        glm::vec3 dragonPos(dragonPos4.x, dragonPos4.y, dragonPos4.z);
 
-        if (dist < bossCollisionRadius && dist > 0.001f)
+        float bossCollisionRadius = 0.55f;
+
+        // Teste usando função genérica
+        if (testPointSphere(player_pos_3d, dragonPos, bossCollisionRadius))
         {
             m_player.takeDamage(m_enemyDamage * 2);
 
-            float pushDirX = dx / dist;
-            float pushDirZ = dz / dist;
+            // Direção do empurrão
+            glm::vec3 pushDir = (player_pos_3d - dragonPos)/norm((player_pos_3d - dragonPos));
 
+            // Calcula o empurrão para fora da esfera
+            float dist = norm(player_pos_3d - dragonPos);
             float overlap = bossCollisionRadius - dist;
             float pushDistance = overlap + 0.01f;
 
-            player_pos_3d.x += pushDirX * pushDistance;
-            player_pos_3d.z += pushDirZ * pushDistance;
+            player_pos_3d += pushDir * pushDistance;
 
+            // Atualiza posição do player
             m_player.updatePositionAfterCollision(player_pos_3d);
         }
     }
@@ -360,30 +390,51 @@ void Game::handleEnemyEnvironmentCollisions()
     for (Enemy& enemy : enemies)
     {
         glm::vec4 enemyPos4 = enemy.getPosition();
-        float enemyX = enemyPos4.x;
-        float enemyZ = enemyPos4.z;
+        glm::vec3 enemyPos(enemyPos4.x, enemyPos4.y, enemyPos4.z);
+
+        glm::vec3 enemyExtents(enemyRadius, enemyRadius, enemyRadius);
+
+        glm::vec3 enemyMin = enemyPos - enemyExtents;
+        glm::vec3 enemyMax = enemyPos + enemyExtents;
+
         bool positionChanged = false;
 
         for (const Pillar& pillar : m_pillars)
         {
-            float dx = enemyX - pillar.position.x;
-            float dz = enemyZ - pillar.position.z;
-            float dist = sqrt(dx * dx + dz * dz);
-            float minDist = pillar.radius + enemyRadius;
+            glm::vec3 pillarExtents(pillar.sizeXZ * 0.5f, pillar.height * 0.5f, pillar.sizeXZ * 0.5f);
+            glm::vec3 pillarCenter(pillar.position.x,
+                                   pillar.position.y + pillarExtents.y,
+                                   pillar.position.z);
 
-            if (dist < minDist && dist > 0.001f)
+            glm::vec3 pillarMin = pillarCenter - pillarExtents;
+            glm::vec3 pillarMax = pillarCenter + pillarExtents;
+
+            if (testAABBAABB(enemyMin, enemyMax, pillarMin, pillarMax))
             {
-                float pushFactor = (minDist - dist) / dist;
-                enemyX += dx * pushFactor;
-                enemyZ += dz * pushFactor;
+                glm::vec3 overlapMin = pillarMax - enemyMin;
+                glm::vec3 overlapMax = enemyMax - pillarMin;
+
+                float resolveX = std::min(overlapMin.x, overlapMax.x);
+                float resolveY = std::min(overlapMin.y, overlapMax.y);
+                float resolveZ = std::min(overlapMin.z, overlapMax.z);
+
+                // Empurrar para fora no eixo de menor penetração
+                if (resolveX < resolveY && resolveX < resolveZ)
+                    enemyPos.x += (enemyPos.x < pillarCenter.x ? -resolveX : resolveX);
+                else if (resolveY < resolveZ)
+                    enemyPos.y += (enemyPos.y < pillarCenter.y ? -resolveY : resolveY);
+                else
+                    enemyPos.z += (enemyPos.z < pillarCenter.z ? -resolveZ : resolveZ);
+
+                enemyMin = enemyPos - enemyExtents;
+                enemyMax = enemyPos + enemyExtents;
+
                 positionChanged = true;
             }
         }
 
-        if (positionChanged)
-        {
-            enemy.setPosition(enemyX, enemyZ);
-        }
+    if (positionChanged)
+        enemy.setPosition(enemyPos.x, enemyPos.z);
     }
 }
 
@@ -420,79 +471,73 @@ void Game::handleProjectileCollisions()
     std::vector<Projectile>& projectiles = m_projectileManager.getProjectiles();
     std::vector<Enemy>& enemies = const_cast<std::vector<Enemy>&>(m_enemyManager.getEnemies());
 
-    float enemyRadius = 0.2f;
-    float bossRadius = 0.3f;
+    float enemyRadius = 0.10f;
+    float bossRadius = 0.45f;
     float projectileRadius = 0.05f;
-    float playerRadius = 0.15f;
+    float playerRadius = 0.10f;
 
     glm::vec4 playerPos4 = m_player.getPosition();
-    glm::vec3 playerPos = glm::vec3(playerPos4.x, playerPos4.y + 0.1f, playerPos4.z);
+    glm::vec3 playerPos(playerPos4.x, playerPos4.y + 0.1f, playerPos4.z);
 
-    for (size_t p = 0; p < projectiles.size(); p++)
+    for (Projectile& proj : projectiles)
     {
-        if (!projectiles[p].active)
+        if (!proj.active)
             continue;
 
-        glm::vec3 projPos = projectiles[p].position;
+        glm::vec3 projPos = proj.position;
 
-        if (projectiles[p].isEnemyProjectile)
+        // ─────────────────────────────────────────────
+        // Projetil inimigo → Colisão com Player
+        // ─────────────────────────────────────────────
+        if (proj.isEnemyProjectile)
         {
-            float dx = projPos.x - playerPos.x;
-            float dy = projPos.y - playerPos.y;
-            float dz = projPos.z - playerPos.z;
-            float distSq = dx * dx + dy * dy + dz * dz;
-            float combinedRadius = playerRadius + projectileRadius;
-
-            if (distSq < combinedRadius * combinedRadius)
+            if (testPointSphere(projPos, playerPos, playerRadius + projectileRadius))
             {
                 m_player.takeDamage(15);
-                projectiles[p].active = false;
-                printf("Player hit by fireball! HP: %d/%d\n", m_player.getVida(), m_player.getMaxVida());
-                continue;
+                proj.active = false;
+
+                printf("Player hit by fireball! HP: %d/%d\n",
+                    m_player.getVida(), m_player.getMaxVida());
             }
-            continue;
+            continue; // Enemy projectiles don't hit enemies
         }
 
-        for (size_t e = 0; e < enemies.size(); e++)
+        // ─────────────────────────────────────────────
+        // Projetil do Jogador → Colisão com Inimigos
+        // ─────────────────────────────────────────────
+        for (Enemy& enemy : enemies)
         {
-            glm::vec4 enemyPos4 = enemies[e].getPosition();
-            glm::vec3 enemyPos = glm::vec3(enemyPos4.x, enemyPos4.y, enemyPos4.z);
+            glm::vec4 epos4 = enemy.getPosition();
+            glm::vec3 enemyPos(epos4.x, epos4.y, epos4.z);
 
-            float dx = projPos.x - enemyPos.x;
-            float dy = projPos.y - enemyPos.y;
-            float dz = projPos.z - enemyPos.z;
-            float distSq = dx * dx + dy * dy + dz * dz;
-            float combinedRadius = enemyRadius + projectileRadius;
-
-            if (distSq < combinedRadius * combinedRadius)
+            if (testPointSphere(projPos, enemyPos, enemyRadius + projectileRadius))
             {
-                enemies[e].takeDamage(100);
-                projectiles[p].active = false;
+                enemy.takeDamage(100);
+                proj.active = false;
                 m_hitMarkerTimer = HIT_MARKER_DURATION;
-                printf("Projectile hit enemy! Enemy HP: %d\n", enemies[e].getVida());
+
+                printf("Projectile hit enemy! Enemy HP: %d\n", enemy.getVida());
                 break;
             }
         }
 
-        if (!projectiles[p].active)
+        if (!proj.active)
             continue;
 
+        // ─────────────────────────────────────────────
+        // Projetil → Colisão com Boss
+        // ─────────────────────────────────────────────
         if (m_dragonBossAlive)
         {
-            glm::vec4 dragonPos4 = m_dragonBoss.getPosition();
-            glm::vec3 dragonPos = glm::vec3(dragonPos4.x, dragonPos4.y + 0.15f, dragonPos4.z);
+            glm::vec4 dpos4 = m_dragonBoss.getPosition();
+            glm::vec3 dragonPos(dpos4.x, dpos4.y + 0.15f, dpos4.z);
 
-            float dx = projPos.x - dragonPos.x;
-            float dy = projPos.y - dragonPos.y;
-            float dz = projPos.z - dragonPos.z;
-            float distSq = dx * dx + dy * dy + dz * dz;
-            float combinedRadius = bossRadius + projectileRadius;
-
-            if (distSq < combinedRadius * combinedRadius)
+            if (testPointSphere(projPos, dragonPos, bossRadius + projectileRadius))
             {
                 m_dragonBoss.takeDamage(100);
-                projectiles[p].active = false;
+                proj.active = false;
                 m_hitMarkerTimer = HIT_MARKER_DURATION;
+
                 printf("Projectile hit Dragon Boss! HP: %d\n", m_dragonBoss.getVida());
 
                 if (m_dragonBoss.isDead())
@@ -566,11 +611,8 @@ void Game::handleHealthPickups(float deltaTime)
             continue;
 
         glm::vec3 pickupPos = m_healthPickups[i].position;
-        float dx = playerPos.x - pickupPos.x;
-        float dz = playerPos.z - pickupPos.z;
-        float distSq = dx * dx + dz * dz;
 
-        if (distSq < pickupRadius * pickupRadius)
+        if (testPointSphere(playerPos, pickupPos, pickupRadius))
         {
             m_player.heal(m_healthPickups[i].healAmount);
             m_healthPickups[i].active = false;

@@ -128,7 +128,7 @@ bool Renderer::init(GLFWwindow* window)
         LoadTextureImage("texturas/vida.png");
         LoadTextureImage("texturas/magica.jpg");
         LoadTextureImage("texturas/lava.png");
-        LoadTextureImage("texturas/lava.jpg"); //Dragon 
+        LoadTextureImage("texturas/lava.jpg"); //Dragon
 
         ObjModel monstermodel("modelos/monstro.obj");
         computeNormals(&monstermodel);
@@ -343,9 +343,9 @@ void Renderer::renderPillars(const std::vector<Pillar>& pillars)
 
         glm::mat4 model = Matrix_Identity();
         float cubeSize = 0.2f;
-        float scaleX = (pillar.radius * 2.0f) / cubeSize;
+        float scaleX = pillar.sizeXZ / cubeSize;
         float scaleY = pillar.height / cubeSize;
-        float scaleZ = (pillar.radius * 2.0f) / cubeSize;
+        float scaleZ = pillar.sizeXZ / cubeSize;
 
         model = model * Matrix_Translate(pillar.position.x, pillar.position.y + pillar.height * 0.5f, pillar.position.z)
                       * Matrix_Scale(scaleX, scaleY, scaleZ);
@@ -387,8 +387,8 @@ void Renderer::renderHealthPickups(const std::vector<HealthPickup>& pickups, flo
 
 void Renderer::updateTorchLights(const std::vector<Torch>& torches, float flicker)
 {
-    float positions[24];  
-    float colors[24];    
+    float positions[24];
+    float colors[24];
     float intensities[8];
     int count = 0;
 
