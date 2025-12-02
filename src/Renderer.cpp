@@ -114,6 +114,8 @@ bool Renderer::init(GLFWwindow* window)
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage8"), 8);
     //Dragon
     glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage9"), 9);
+    //Fogo
+    glUniform1i(glGetUniformLocation(m_gpuProgramID, "TextureImage10"), 10);
     glUseProgram(0);
 
     m_vertexArrayObjectID = buildGeometry();
@@ -129,6 +131,7 @@ bool Renderer::init(GLFWwindow* window)
         LoadTextureImage("texturas/magica.jpg");
         LoadTextureImage("texturas/lava.png");
         LoadTextureImage("texturas/lava.jpg"); //Dragon
+        LoadTextureImage("texturas/fogo.jpg");
 
         ObjModel monstermodel("modelos/monstro.obj");
         computeNormals(&monstermodel);

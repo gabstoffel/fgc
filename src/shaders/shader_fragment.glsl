@@ -46,7 +46,7 @@ uniform sampler2D TextureImage6;
 uniform sampler2D TextureImage7;
 uniform sampler2D TextureImage8;
 uniform sampler2D TextureImage9;
-
+uniform sampler2D TextureImage10;
 #define MAX_TORCHES 8
 uniform vec3 torch_positions[MAX_TORCHES];
 uniform vec3 torch_colors[MAX_TORCHES];
@@ -129,7 +129,7 @@ vec3 calculateTorchLightingDiffuseOnly(vec4 fragPos, vec4 normal, vec3 Kd)
 
         float attenuation = 1.0 / (1.0 + 0.7 * distance + 1.8 * distance * distance);
 
-        // Lambert 
+        // Lambert
         float NdotL = max(dot(normal, lightDir), 0.0);
         totalLight += Kd * lightColor * NdotL * intensity * attenuation;
     }
@@ -359,11 +359,30 @@ void main()
     }
     else if(object_id == TORCH)
     {
+        vec4 p = (position_model - bbox_min) / (bbox_max - bbox_min);
+        vec4 absP = abs(p);
+
+        if(absP.x >= absP.y && absP.x >= absP.z) {
+            U = p.z;
+            V = p.y;
+        }
+        else if(absP.y >= absP.x && absP.y >= absP.z) {
+            U = p.x;
+            V = p.z;
+        }
+        else {
+            U = p.x;
+            V = p.y;
+        }
+        U = U * 0.5 + 0.5;
+        V = V * 0.5 + 0.5;
         vec3 fireCore = vec3(1.0, 0.5, 0.1);
         vec3 fireGlow = vec3(1.0, 0.8, 0.2);
         float fresnel = 1.0 - max(dot(n, v), 0.0);
         fresnel = pow(fresnel, 2.0);
-        color.rgb = mix(fireCore, fireGlow, fresnel) * 2.5;
+        vec3 luz_fogo = mix(fireCore, fireGlow, fresnel) * 2.5;
+        vec3 fogo_tex = texture(TextureImage10, vec2(U,V)).rgb;
+        color.rgb=luz_fogo*fogo_tex;
     }
     else
     {
