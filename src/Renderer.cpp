@@ -209,6 +209,29 @@ void Renderer::renderScene(const Player& player, const EnemyManager& enemyManage
     }
 }
 
+void Renderer::renderScenePaused(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive, const glm::vec4& cameraPosition, float deltaTime, const ProjectileManager* projectileManager)
+{
+    glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glUseProgram(m_gpuProgramID);
+
+    glUniformMatrix4fv(m_viewUniform, 1, GL_FALSE, glm::value_ptr(m_currentView));
+    glUniformMatrix4fv(m_projectionUniform, 1, GL_FALSE, glm::value_ptr(m_currentProjection));
+
+    glBindVertexArray(m_vertexArrayObjectID);
+
+    renderArena();
+    renderPlayerLookingAt(player, cameraPosition);
+    renderEnemiesLookingAt(enemyManager, cameraPosition);
+    renderDragonBossLookingAt(dragonBoss, dragonBossAlive, cameraPosition);
+
+    if (projectileManager != nullptr)
+    {
+        renderProjectiles(*projectileManager, deltaTime);
+    }
+}
+
 void Renderer::renderArena()
 {
     glm::mat4 model = Matrix_Identity();
@@ -257,6 +280,40 @@ void Renderer::renderPlayer(const Player& player)
     glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
     glUniform1i(m_objectIdUniform, 1);
     // Renderriza o player
+    if (m_virtualScene.find("Arqueira") != m_virtualScene.end())
+        drawVirtualObject("Arqueira");
+    else if (m_virtualScene.find("cube_faces") != m_virtualScene.end())
+    {
+        glBindVertexArray(m_vertexArrayObjectID);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+    }
+
+    PopMatrix(model);
+}
+
+void Renderer::renderPlayerLookingAt(const Player& player, const glm::vec4& cameraPosition)
+{
+    glm::mat4 model = Matrix_Identity();
+    glm::vec4 position = player.getPosition();
+
+    glm::vec4 toCamera = cameraPosition - position;
+    float angleToCamera = atan2(toCamera.x, toCamera.z);
+
+    PushMatrix(model);
+    float dist_chao = m_virtualScene["Arqueira"].bbox_min.y;
+    dist_chao=0-dist_chao;
+    dist_chao=dist_chao*0.001f;
+    model = model * Matrix_Translate(position.x, dist_chao + position.y - 0.101f, position.z)
+                  * Matrix_Rotate_Y(angleToCamera);
+    PushMatrix(model);
+        model = model*Matrix_Translate(0.057f,0.06f,0.02f)*Matrix_Rotate_X(M_PI/4)* Matrix_Scale(0.09f, 0.09f, 0.09f);
+        glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(m_objectIdUniform, 10);
+        drawVirtualObject("Varinha");
+    PopMatrix(model);
+    model=model* Matrix_Scale(0.001f, 0.001f, 0.001f);
+    glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+    glUniform1i(m_objectIdUniform, 1);
     if (m_virtualScene.find("Arqueira") != m_virtualScene.end())
         drawVirtualObject("Arqueira");
     else if (m_virtualScene.find("cube_faces") != m_virtualScene.end())
@@ -320,6 +377,75 @@ void Renderer::renderDragonBoss(const Enemy& dragon, bool isAlive, const glm::ve
 
     model = model * Matrix_Translate(dragonPos.x, dragonPos.y + 0.15f, dragonPos.z)
                   * Matrix_Rotate_Y(angleToPlayer)
+                  * Matrix_Scale(0.4f, 0.4f, 0.4f);
+
+    glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+    glUniform1i(m_objectIdUniform, 9);
+
+    if (m_virtualScene.find("Mesh1.001") != m_virtualScene.end())
+    {
+        drawVirtualObject("Mesh1.001");
+    }
+
+    PopMatrix(model);
+}
+
+void Renderer::renderEnemiesLookingAt(const EnemyManager& enemyManager, const glm::vec4& cameraPosition)
+{
+    const std::vector<Enemy>& enemies = enemyManager.getEnemies();
+    glm::mat4 model = Matrix_Identity();
+    float dist_chao = m_virtualScene["turle"].bbox_min.y;
+    dist_chao=0-dist_chao;
+    dist_chao=dist_chao*0.15f;
+    for (size_t i = 0; i < enemies.size(); i++)
+    {
+        float baseScale = 0.15f;
+        float deathScale = enemies[i].getDeathScale();
+        float finalScale = baseScale * deathScale;
+
+        glm::vec4 enemyPos = enemies[i].getPosition();
+        glm::vec4 toCamera = cameraPosition - enemyPos;
+        float angleToCamera = atan2(toCamera.x, toCamera.z);
+
+        PushMatrix(model);
+        model = model * Matrix_Translate(enemies[i].getX(), dist_chao, enemies[i].getZ());
+        model = model * Matrix_Rotate_Y(angleToCamera);
+        model = model * Matrix_Scale(finalScale, finalScale, finalScale);
+
+        glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
+
+        if (enemies[i].isDying())
+            glUniform1i(m_objectIdUniform, 18);
+        else
+            glUniform1i(m_objectIdUniform, 0);
+
+        if (m_virtualScene.find("turle") != m_virtualScene.end())
+            drawVirtualObject("turle");
+        else if (m_virtualScene.find("cube_faces") != m_virtualScene.end())
+        {
+            glBindVertexArray(m_vertexArrayObjectID);
+            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void*)0);
+        }
+
+        PopMatrix(model);
+    }
+}
+
+void Renderer::renderDragonBossLookingAt(const Enemy& dragon, bool isAlive, const glm::vec4& cameraPosition)
+{
+    if (!isAlive)
+        return;
+
+    glm::mat4 model = Matrix_Identity();
+    glm::vec4 dragonPos = dragon.getPosition();
+
+    glm::vec4 toCamera = cameraPosition - dragonPos;
+    float angleToCamera = atan2(toCamera.x, toCamera.z) + 1.5707963f;
+
+    PushMatrix(model);
+
+    model = model * Matrix_Translate(dragonPos.x, dragonPos.y + 0.15f, dragonPos.z)
+                  * Matrix_Rotate_Y(angleToCamera)
                   * Matrix_Scale(0.4f, 0.4f, 0.4f);
 
     glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
@@ -404,6 +530,7 @@ void Renderer::updateTorchLights(const std::vector<Torch>& torches, float flicke
         colors[count*3+1] = 0.55f;
         colors[count*3+2] = 0.15f;
 
+        //intensities[count] = 2.2f + 0.5f * sin(flicker + i * 1.5f);
         intensities[count] = 1.5f + 0.4f * sin(flicker + i * 1.5f);
 
         count++;
@@ -612,6 +739,27 @@ void Renderer::renderCountdown(int countdownNumber)
     {
         TextRendering_PrintString(m_window, "GO!", -0.12f, 0.0f, 4.0f);
     }
+}
+
+void Renderer::renderPauseOverlay(const char* focusTargetName, int enemyIndex)
+{
+    if (m_window == nullptr)
+        return;
+
+    TextRendering_PrintString(m_window, "=== PAUSADO ===", -0.30f, 0.7f, 2.5f);
+
+    char focusBuffer[64];
+    if (enemyIndex >= 0)
+        snprintf(focusBuffer, 64, "Foco: %s #%d", focusTargetName, enemyIndex + 1);
+    else
+        snprintf(focusBuffer, 64, "Foco: %s", focusTargetName);
+    TextRendering_PrintString(m_window, focusBuffer, -0.25f, 0.5f, 2.0f);
+
+    TextRendering_PrintString(m_window, "[1] Heroi  [2] Inimigo  [3] Dragao", -0.55f, 0.3f, 1.2f);
+    TextRendering_PrintString(m_window, "[TAB] ou [<] [>] para trocar alvo", -0.50f, 0.2f, 1.2f);
+    TextRendering_PrintString(m_window, "Arraste mouse para orbitar", -0.40f, 0.1f, 1.2f);
+    TextRendering_PrintString(m_window, "Scroll para zoom (bem perto!)", -0.45f, 0.0f, 1.2f);
+    TextRendering_PrintString(m_window, "[P] ou [ESC] para continuar", -0.40f, -0.7f, 1.5f);
 }
 
 GLuint Renderer::buildGeometry()

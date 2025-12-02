@@ -50,12 +50,16 @@ public:
     bool init(GLFWwindow* window);
 
     void renderScene(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive, float deltaTime, const ProjectileManager* projectileManager = nullptr);
+    void renderScenePaused(const Player& player, const EnemyManager& enemyManager, const Enemy& dragonBoss, bool dragonBossAlive, const glm::vec4& cameraPosition, float deltaTime, const ProjectileManager* projectileManager = nullptr);
 
     void renderArena();
     void renderProjectiles(const ProjectileManager& projectileManager, float deltaTime);
     void renderPlayer(const Player& player);
+    void renderPlayerLookingAt(const Player& player, const glm::vec4& cameraPosition);
     void renderEnemies(const EnemyManager& enemyManager, const glm::vec4& playerPosition);
+    void renderEnemiesLookingAt(const EnemyManager& enemyManager, const glm::vec4& cameraPosition);
     void renderDragonBoss(const Enemy& dragon, bool isAlive, const glm::vec4& playerPosition);
+    void renderDragonBossLookingAt(const Enemy& dragon, bool isAlive, const glm::vec4& cameraPosition);
     void renderPillars(const std::vector<Pillar>& pillars);
     void renderHealthPickups(const std::vector<HealthPickup>& pickups, float deltaTime);
     void renderTorches(const std::vector<Torch>& torches, float deltaTime);
@@ -66,6 +70,7 @@ public:
     void renderGameOver();
     void renderWin();
     void renderCountdown(int countdownNumber);
+    void renderPauseOverlay(const char* focusTargetName, int enemyIndex = -1);
     void renderHitMarker();
     void renderMuzzleFlash();
     void renderDamageFlash(float intensity);

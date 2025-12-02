@@ -34,8 +34,15 @@ enum class GameState {
     MENU,
     COUNTDOWN,
     PLAYING,
+    PAUSED,
     GAME_OVER,
     WIN
+};
+
+enum class PauseFocusTarget {
+    PLAYER,
+    ENEMY,
+    DRAGON
 };
 
 class Game
@@ -64,6 +71,18 @@ public:
     void startGame();
     void resetGame();
     void returnToMenu();
+    void togglePause();
+    bool isPaused() const { return m_gameState == GameState::PAUSED; }
+
+    float getPauseCameraTheta() const { return m_pauseCameraTheta; }
+    float getPauseCameraPhi() const { return m_pauseCameraPhi; }
+    float getPauseCameraDistance() const { return m_pauseCameraDistance; }
+    void handlePauseCameraMove(float dx, float dy);
+    void handlePauseCameraZoom(float offset);
+    void cyclePauseFocusTarget(bool forward = true);
+    void setPauseFocusTarget(PauseFocusTarget target);
+    PauseFocusTarget getPauseFocusTarget() const { return m_pauseFocusTarget; }
+    const char* getFocusTargetName() const;
 
 private:
     void update(float deltaTime);
@@ -120,6 +139,13 @@ private:
     std::vector<Torch> m_torches;
     float m_gameTime;
     float m_baseEnemySpeed;
+
+    float m_pauseCameraTheta;
+    float m_pauseCameraPhi;
+    float m_pauseCameraDistance;
+    glm::vec4 m_pauseCameraTarget;
+    PauseFocusTarget m_pauseFocusTarget;
+    int m_pauseFocusEnemyIndex;  
 };
 
 #endif

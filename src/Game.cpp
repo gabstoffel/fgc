@@ -26,6 +26,12 @@ Game::Game()
     , m_healthSpawnTimer(0.0f)
     , m_gameTime(0.0f)
     , m_baseEnemySpeed(0.4f)
+    , m_pauseCameraTheta(0.0f)
+    , m_pauseCameraPhi(0.5f)
+    , m_pauseCameraDistance(2.0f)
+    , m_pauseCameraTarget(0.0f, 0.5f, 0.0f, 1.0f)
+    , m_pauseFocusTarget(PauseFocusTarget::PLAYER)
+    , m_pauseFocusEnemyIndex(0)
 {
     m_pillars.push_back({glm::vec3(-3.0f, 0.0f, 1.2f), 0.5f, 3.0f});
     m_pillars.push_back({glm::vec3(-1.5f, 0.0f, 1.2f), 0.5f, 3.0f});
@@ -250,6 +256,46 @@ void Game::render(float deltaTime)
 
             if (m_hitMarkerTimer > 0.0f)
                 m_renderer.renderHitMarker();
+        }
+        break;
+
+    case GameState::PAUSED:
+        {
+            float camX = m_pauseCameraTarget.x + m_pauseCameraDistance * sin(m_pauseCameraPhi) * cos(m_pauseCameraTheta);
+            float camY = m_pauseCameraTarget.y + m_pauseCameraDistance * cos(m_pauseCameraPhi);
+            float camZ = m_pauseCameraTarget.z + m_pauseCameraDistance * sin(m_pauseCameraPhi) * sin(m_pauseCameraTheta);
+
+            glm::vec4 camera_position = glm::vec4(camX, camY, camZ, 1.0f);
+
+            const float arenaMinX = -4.2f;
+            const float arenaMaxX = 4.2f;
+            const float arenaMinZ = -1.2f;
+            const float arenaMaxZ = 1.2f;
+            const float minY = 0.3f;
+            const float maxY = 2.8f;
+
+            if (camera_position.x < arenaMinX) camera_position.x = arenaMinX;
+            if (camera_position.x > arenaMaxX) camera_position.x = arenaMaxX;
+            if (camera_position.z < arenaMinZ) camera_position.z = arenaMinZ;
+            if (camera_position.z > arenaMaxZ) camera_position.z = arenaMaxZ;
+            if (camera_position.y < minY) camera_position.y = minY;
+            if (camera_position.y > maxY) camera_position.y = maxY;
+            glm::vec4 camera_lookat = m_pauseCameraTarget;
+            glm::vec4 camera_view = camera_lookat - camera_position;
+            glm::vec4 camera_up = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+            glm::mat4 view = Matrix_Camera_View(camera_position, camera_view, camera_up);
+
+            float nearplane = -0.1f;
+            float farplane = -5000.0f;
+            float field_of_view = 3.141592f / 3.0f;
+            glm::mat4 projection = Matrix_Perspective(field_of_view, Input::getScreenRatio(), nearplane, farplane);
+
+            m_renderer.setView(view);
+            m_renderer.setProjection(projection);
+            m_renderer.renderScenePaused(m_player, m_enemyManager, m_dragonBoss, m_dragonBossAlive, camera_position, deltaTime, &m_projectileManager);
+            m_renderer.renderPillars(m_pillars);
+            m_renderer.renderTorches(m_torches, deltaTime);
+            m_renderer.renderHealthPickups(m_healthPickups, deltaTime);
         }
         break;
 
@@ -748,4 +794,176 @@ void Game::returnToMenu()
     m_dragonAttackTimer = 0.0f;
     m_healthSpawnTimer = 0.0f;
     m_gameTime = 0.0f;
+}
+
+void Game::togglePause()
+{
+    if (m_gameState == GameState::PLAYING)
+    {
+        m_gameState = GameState::PAUSED;
+        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
+        m_pauseFocusTarget = PauseFocusTarget::PLAYER;
+        m_pauseFocusEnemyIndex = 0;
+        glm::vec4 playerPos = m_player.getPosition();
+        m_pauseCameraTarget = glm::vec4(playerPos.x, 0.3f, playerPos.z, 1.0f);
+        m_pauseCameraTheta = 0.0f;
+        m_pauseCameraPhi = 1.2f;
+        m_pauseCameraDistance = 1.5f;
+    }
+    else if (m_gameState == GameState::PAUSED)
+    {
+        m_gameState = GameState::PLAYING;
+        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    }
+}
+
+void Game::handlePauseCameraMove(float dx, float dy)
+{
+    if (m_gameState != GameState::PAUSED)
+        return;
+
+    float sensitivity = 0.005f;
+    m_pauseCameraTheta -= dx * sensitivity;
+    m_pauseCameraPhi += dy * sensitivity;
+
+    float phiMin = 0.1f;
+    float phiMax = 3.14159f - 0.1f;
+    if (m_pauseCameraPhi < phiMin) m_pauseCameraPhi = phiMin;
+    if (m_pauseCameraPhi > phiMax) m_pauseCameraPhi = phiMax;
+}
+
+void Game::handlePauseCameraZoom(float offset)
+{
+    if (m_gameState != GameState::PAUSED)
+        return;
+
+    m_pauseCameraDistance -= offset * 0.3f;
+    if (m_pauseCameraDistance < 0.3f) m_pauseCameraDistance = 0.3f;
+    if (m_pauseCameraDistance > 8.0f) m_pauseCameraDistance = 8.0f;
+}
+
+void Game::cyclePauseFocusTarget(bool forward)
+{
+    if (m_gameState != GameState::PAUSED)
+        return;
+
+    const std::vector<Enemy>& enemies = m_enemyManager.getEnemies();
+
+    if (forward)
+    {
+        switch (m_pauseFocusTarget)
+        {
+        case PauseFocusTarget::PLAYER:
+            if (!enemies.empty())
+            {
+                m_pauseFocusTarget = PauseFocusTarget::ENEMY;
+                m_pauseFocusEnemyIndex = 0;
+            }
+            else if (m_dragonBossAlive)
+            {
+                m_pauseFocusTarget = PauseFocusTarget::DRAGON;
+            }
+            break;
+        case PauseFocusTarget::ENEMY:
+            m_pauseFocusEnemyIndex++;
+            if (m_pauseFocusEnemyIndex >= (int)enemies.size())
+            {
+                if (m_dragonBossAlive)
+                    m_pauseFocusTarget = PauseFocusTarget::DRAGON;
+                else
+                    m_pauseFocusTarget = PauseFocusTarget::PLAYER;
+                m_pauseFocusEnemyIndex = 0;
+            }
+            break;
+        case PauseFocusTarget::DRAGON:
+            m_pauseFocusTarget = PauseFocusTarget::PLAYER;
+            m_pauseFocusEnemyIndex = 0;
+            break;
+        }
+    }
+    else
+    {
+        switch (m_pauseFocusTarget)
+        {
+        case PauseFocusTarget::PLAYER:
+            if (m_dragonBossAlive)
+                m_pauseFocusTarget = PauseFocusTarget::DRAGON;
+            else if (!enemies.empty())
+            {
+                m_pauseFocusTarget = PauseFocusTarget::ENEMY;
+                m_pauseFocusEnemyIndex = enemies.size() - 1;
+            }
+            break;
+        case PauseFocusTarget::ENEMY:
+            m_pauseFocusEnemyIndex--;
+            if (m_pauseFocusEnemyIndex < 0)
+            {
+                m_pauseFocusTarget = PauseFocusTarget::PLAYER;
+                m_pauseFocusEnemyIndex = 0;
+            }
+            break;
+        case PauseFocusTarget::DRAGON:
+            if (!enemies.empty())
+            {
+                m_pauseFocusTarget = PauseFocusTarget::ENEMY;
+                m_pauseFocusEnemyIndex = enemies.size() - 1;
+            }
+            else
+                m_pauseFocusTarget = PauseFocusTarget::PLAYER;
+            break;
+        }
+    }
+
+    setPauseFocusTarget(m_pauseFocusTarget);
+}
+
+void Game::setPauseFocusTarget(PauseFocusTarget target)
+{
+    m_pauseFocusTarget = target;
+    const std::vector<Enemy>& enemies = m_enemyManager.getEnemies();
+
+    switch (target)
+    {
+    case PauseFocusTarget::PLAYER:
+        {
+            glm::vec4 pos = m_player.getPosition();
+            m_pauseCameraTarget = glm::vec4(pos.x, 0.3f, pos.z, 1.0f);
+        }
+        break;
+    case PauseFocusTarget::ENEMY:
+        if (!enemies.empty())
+        {
+            if (m_pauseFocusEnemyIndex >= (int)enemies.size())
+                m_pauseFocusEnemyIndex = 0;
+            glm::vec4 pos = enemies[m_pauseFocusEnemyIndex].getPosition();
+            m_pauseCameraTarget = glm::vec4(pos.x, 0.15f, pos.z, 1.0f);
+        }
+        break;
+    case PauseFocusTarget::DRAGON:
+        if (m_dragonBossAlive)
+        {
+            glm::vec4 pos = m_dragonBoss.getPosition();
+            m_pauseCameraTarget = glm::vec4(pos.x, 0.3f, pos.z, 1.0f);
+        }
+        break;
+    }
+
+    m_pauseCameraTheta = 0.0f;
+    m_pauseCameraPhi = 1.2f;
+    m_pauseCameraDistance = 1.5f;
+}
+
+const char* Game::getFocusTargetName() const
+{
+    switch (m_pauseFocusTarget)
+    {
+    case PauseFocusTarget::PLAYER:
+        return "HEROI";
+    case PauseFocusTarget::ENEMY:
+        return "INIMIGO";
+    case PauseFocusTarget::DRAGON:
+        return "DRAGAO";
+    }
+    return "???";
 }

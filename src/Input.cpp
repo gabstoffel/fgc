@@ -65,6 +65,17 @@ void Input::cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
             s_leftMouseButtonPressed ? "true" : "false",
             callback_count);
 
+    if (s_game != nullptr && s_game->getGameState() == GameState::PAUSED)
+    {
+        if (s_leftMouseButtonPressed)
+        {
+            s_game->handlePauseCameraMove(dx, dy);
+        }
+        s_lastCursorPosX = xpos;
+        s_lastCursorPosY = ypos;
+        return;
+    }
+
     if (!s_player->isFirstPerson())
     {
         if (!s_leftMouseButtonPressed)
@@ -83,6 +94,12 @@ void Input::cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
 
 void Input::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
+    if (s_game != nullptr && s_game->getGameState() == GameState::PAUSED)
+    {
+        s_game->handlePauseCameraZoom(yoffset);
+        return;
+    }
+
     if (s_player == nullptr)
         return;
 
@@ -148,9 +165,51 @@ void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, i
         }
     }
 
+    if (key == GLFW_KEY_P && action == GLFW_PRESS)
+    {
+        if (gameState == GameState::PLAYING || gameState == GameState::PAUSED)
+        {
+            s_game->togglePause();
+        }
+        return;
+    }
+
+    if (gameState == GameState::PAUSED && action == GLFW_PRESS)
+    {
+        if (key == GLFW_KEY_TAB || key == GLFW_KEY_RIGHT || key == GLFW_KEY_D)
+        {
+            s_game->cyclePauseFocusTarget(true);  
+            return;
+        }
+        if (key == GLFW_KEY_LEFT || key == GLFW_KEY_A)
+        {
+            s_game->cyclePauseFocusTarget(false);  
+            return;
+        }
+        if (key == GLFW_KEY_1)
+        {
+            s_game->setPauseFocusTarget(PauseFocusTarget::PLAYER);
+            return;
+        }
+        if (key == GLFW_KEY_2)
+        {
+            s_game->setPauseFocusTarget(PauseFocusTarget::ENEMY);
+            return;
+        }
+        if (key == GLFW_KEY_3)
+        {
+            s_game->setPauseFocusTarget(PauseFocusTarget::DRAGON);
+            return;
+        }
+    }
+
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
-        if (gameState == GameState::PLAYING)
+        if (gameState == GameState::PAUSED)
+        {
+            s_game->togglePause();
+        }
+        else if (gameState == GameState::PLAYING)
         {
             s_game->returnToMenu();
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
