@@ -10,7 +10,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 Game::Game()
-    : m_dragonBoss(-3.5f, 0.0f, 1500)
+    : m_dragonBoss(-3.5f, 0.0f, 5000)
     , m_dragonBossAlive(true)
     , m_window(nullptr)
     , m_lastFrameTime(0.0)
@@ -679,23 +679,26 @@ void Game::setDifficulty(int difficulty)
 
     switch (difficulty)
     {
-    case 0:
+    case 0: // Fácil
         m_player.setVida(150, 150);
         m_enemyManager.setEnemySpeed(0.15f);
         m_enemyManager.setMaxEnemies(1);
         m_enemyDamage = 5;
+        m_dragonAttackInterval = 4.0f;  // Fireball a cada 4 segundos
         break;
-    case 1:
+    case 1: // Normal
         m_player.setVida(100, 100);
         m_enemyManager.setEnemySpeed(0.25f);
         m_enemyManager.setMaxEnemies(2);
         m_enemyDamage = 10;
+        m_dragonAttackInterval = 2.5f;  // Fireball a cada 2.5 segundos
         break;
-    case 2:
+    case 2: // Difícil
         m_player.setVida(75, 75);
         m_enemyManager.setEnemySpeed(0.35f);
         m_enemyManager.setMaxEnemies(3);
         m_enemyDamage = 20;
+        m_dragonAttackInterval = 1.0f;  // Fireball a cada 1.0 segundos
         break;
     }
 }
@@ -720,7 +723,7 @@ void Game::resetGame()
     m_enemyManager.clearEnemies();
     m_projectileManager.clear();
     m_healthPickups.clear();
-    m_dragonBoss = Enemy(-3.5f, 0.0f, 1500);
+    m_dragonBoss = Enemy(-3.5f, 0.0f, 5000);
     m_dragonBossAlive = true;
     m_hitMarkerTimer = 0.0f;
     m_muzzleFlashTimer = 0.0f;
@@ -738,7 +741,7 @@ void Game::returnToMenu()
     m_enemyManager.clearEnemies();
     m_projectileManager.clear();
     m_healthPickups.clear();
-    m_dragonBoss = Enemy(-3.5f, 0.0f, 1500);
+    m_dragonBoss = Enemy(-3.5f, 0.0f, 5000);
     m_dragonBossAlive = true;
     m_hitMarkerTimer = 0.0f;
     m_muzzleFlashTimer = 0.0f;
