@@ -434,7 +434,10 @@ void Game::handleEnemyEnvironmentCollisions()
         }
 
     if (positionChanged)
+    {
         enemy.setPosition(enemyPos.x, enemyPos.z);
+        enemy.onObstacleCollision();  // recalcula o caminho, usando curva de bezier
+    }
     }
 }
 

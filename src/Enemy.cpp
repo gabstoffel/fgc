@@ -84,75 +84,151 @@ void Enemy::update(float deltaTime, const Player& player)
     const float arenaMinZ = -1.2f;
     const float arenaMaxZ = 1.2f;
 
-    if (m_x < arenaMinX) m_x = arenaMinX;
-    if (m_x > arenaMaxX) m_x = arenaMaxX;
-    if (m_z < arenaMinZ) m_z = arenaMinZ;
-    if (m_z > arenaMaxZ) m_z = arenaMaxZ;
+    bool hitWall = false;
+    if (m_x < arenaMinX) { m_x = arenaMinX; hitWall = true; }
+    if (m_x > arenaMaxX) { m_x = arenaMaxX; hitWall = true; }
+    if (m_z < arenaMinZ) { m_z = arenaMinZ; hitWall = true; }
+    if (m_z > arenaMaxZ) { m_z = arenaMaxZ; hitWall = true; }
+
+    // recalcula a curva se bate numa parede
+    if (hitWall && !inKnockback) {
+        onObstacleCollision();
+    }
 }
 
+// ============================================================================
+// RECÁLCULO DA CURVA DE BÉZIER - Conversão Hermite para Bézier
+// ============================================================================
+// CUBIC HERMITE SPLINES:
+//    Definidas por pontos P0, P3 e vetores tangentes v0, v1
+///
+// CONTINUIDADE C1:
+//    Para transição suave entre curvas consecutivas, a derivada
+//    no fim da curva anterior deve ser igual à derivada no início
+//    da nova curva. Usamos evaluateBezierDerivative(t) para obter
+//    a velocidade atual e usá-la como v0 da nova curva.
+//
+// CATMULL-ROM (para curva inicial):
+//    Quando não há curva anterior, usamos a fórmula de Catmull-Rom:
+// ============================================================================
 void Enemy::recalculateCurve(const glm::vec4& playerPos)
 {
-    glm::vec4 currentVelocity = glm::vec4(0.0f);
-    if (m_curveInitialized && m_bezierT > 0.001f) {
-        currentVelocity = evaluateBezierDerivative(m_bezierT);
-    }
-
-    // P0
+    // P0: posição atual do inimigo (início da curva)
     m_bezierP0 = glm::vec4(m_x, 0.0f, m_z, 1.0f);
 
-    // P3
+    // P3: posição do jogador (fim da curva)
     m_bezierP3 = glm::vec4(playerPos.x, 0.0f, playerPos.z, 1.0f);
 
+    // Vetor direção e distância até o alvo
     glm::vec4 toTarget = m_bezierP3 - m_bezierP0;
     float distance = norm(toTarget);
 
     if (distance < 0.01f) {
+        // Muito perto do alvo: curva degenerada (linha reta)
         m_bezierP1 = m_bezierP0;
         m_bezierP2 = m_bezierP3;
     } else {
+        // Direção normalizada e vetor perpendicular (para variação)
         glm::vec4 dir = toTarget / distance;
-
         glm::vec4 perp = glm::vec4(-dir.z, 0.0f, dir.x, 0.0f);
 
-        float side1 = (rand() % 2 == 0) ? 1.0f : -1.0f;
-        float side2 = -side1; // garante que os pontos vão ficar em lados opostos
+        // ================================================================
+        // v0: Vetor tangente inicial (para continuidade C1)
+        // ================================================================
+        // Se já existe uma curva, usa a derivada atual para manter
+        // a velocidade contínua (sem "saltos" na direção do movimento)
+        glm::vec4 v0;
+        if (m_curveInitialized && m_bezierT > 0.001f) {
+            // Continuidade C1: v0 = derivada da curva anterior no ponto atual
+            v0 = evaluateBezierDerivative(m_bezierT);
+        } else {
+            // Sem curva anterior: usa fórmula de Catmull-Rom 
+            v0 = toTarget * 0.5f;
+        }
 
-        float offset1 = 0.3f + ((float)rand() / RAND_MAX) * 0.2f;
-        m_bezierP1 = m_bezierP0 + dir * (distance * 0.33f)
-                   + perp * (side1 * distance * offset1);
+        // ================================================================
+        // v1: Vetor tangente final (com variação aleatória)
+        // ================================================================
+        // Direção base para o alvo com offset perpendicular aleatório
+        // Isso cria trajetórias mais interessantes (curvas S ou C)
+        float side = (rand() % 2 == 0) ? 1.0f : -1.0f;
+        float perpOffset = ((float)rand() / RAND_MAX) * 0.3f;
+        glm::vec4 approachDir = dir + perp * (side * perpOffset);
+        float approachMag = norm(approachDir);
+        if (approachMag > 0.001f) {
+            approachDir = approachDir / approachMag;
+        }
+        // Escala v1 proporcionalmente à distância (estilo Catmull-Rom)
+        glm::vec4 v1 = approachDir * distance * 0.5f;
 
-        float offset2 = 0.3f + ((float)rand() / RAND_MAX) * 0.2f;
-        m_bezierP2 = m_bezierP0 + dir * (distance * 0.66f)
-                   + perp * (side2 * distance * offset2);
+        // ================================================================
+        // CONVERSÃO HERMITE → BÉZIER
+        // ================================================================
+        // Das notas de aula:
+        //   P1 = P0 + v0/3  (ponto de controle inicial)
+        //   P2 = P3 - v1/3  (ponto de controle final)
+        m_bezierP1 = m_bezierP0 + v0 * (1.0f / 3.0f);
+        m_bezierP2 = m_bezierP3 - v1 * (1.0f / 3.0f);
+
+        // Restringe pontos de controle aos limites da arena
+        // (evita trajetórias que saem muito da área de jogo)
+        const float arenaMinX = -4.1f;
+        const float arenaMaxX = 4.1f;
+        const float arenaMinZ = -1.1f;
+        const float arenaMaxZ = 1.1f;
+
+        m_bezierP1.x = std::max(arenaMinX, std::min(m_bezierP1.x, arenaMaxX));
+        m_bezierP1.z = std::max(arenaMinZ, std::min(m_bezierP1.z, arenaMaxZ));
+        m_bezierP2.x = std::max(arenaMinX, std::min(m_bezierP2.x, arenaMaxX));
+        m_bezierP2.z = std::max(arenaMinZ, std::min(m_bezierP2.z, arenaMaxZ));
     }
 
+    // Reinicia o parâmetro t para o início da nova curva
     m_bezierT = 0.0f;
+    // Timer para recalcular a curva periodicamente (2-3 segundos)
     m_curveRecalcTimer = 2.0f + ((float)rand() / RAND_MAX) * 1.0f;
 }
 
+// ============================================================================
+// AVALIAÇÃO DA CURVA DE BÉZIER CÚBICA
+// ============================================================================
+// ============================================================================
 glm::vec4 Enemy::evaluateBezier(float t) const
 {
-    // B(t) = (1-t)³P0 + 3(1-t)²tP1 + 3(1-t)t²P2 + t³P3
-    float u = 1.0f - t;
-    float u2 = u * u;
-    float u3 = u2 * u;
-    float t2 = t * t;
-    float t3 = t2 * t;
+    // Calcula (1-t) e suas potências
+    float u = 1.0f - t;      // u = (1-t)
+    float u2 = u * u;        // u² = (1-t)²
+    float u3 = u2 * u;       // u³ = (1-t)³
 
-    return u3 * m_bezierP0
-         + 3.0f * u2 * t * m_bezierP1
-         + 3.0f * u * t2 * m_bezierP2
-         + t3 * m_bezierP3;
+    // Calcula t e suas potências
+    float t2 = t * t;        // t²
+    float t3 = t2 * t;       // t³
+
+    // Avalia a curva usando polinômios de Bernstein:
+    return u3 * m_bezierP0              // b₀,₃(t)·P0
+         + 3.0f * u2 * t * m_bezierP1   // b₁,₃(t)·P1
+         + 3.0f * u * t2 * m_bezierP2   // b₂,₃(t)·P2
+         + t3 * m_bezierP3;             // b₃,₃(t)·P3
 }
 
+// ============================================================================
+// DERIVADA DA CURVA DE BÉZIER CÚBICA
+// ============================================================================
+// CASOS ESPECIAIS (usados para continuidade C1):
+//    c'(0) = 3(P1 - P0) = v0  (tangente no início)
+//    c'(1) = 3(P3 - P2) = v1  (tangente no fim)
+//
+// Esta função é usada para obter a velocidade atual do inimigo
+// e garantir transições suaves entre curvas consecutivas.
+// ============================================================================
 glm::vec4 Enemy::evaluateBezierDerivative(float t) const
 {
-    //  B'(t) = 3(1-t)²(P1-P0) + 6(1-t)t(P2-P1) + 3t²(P3-P2)
-    float u = 1.0f - t;
+    float u = 1.0f - t;  // u = (1-t)
 
-    return 3.0f * u * u * (m_bezierP1 - m_bezierP0)
-         + 6.0f * u * t * (m_bezierP2 - m_bezierP1)
-         + 3.0f * t * t * (m_bezierP3 - m_bezierP2);
+    // Derivada: c'(t) = 3(1-t)²(P1-P0) + 6(1-t)t(P2-P1) + 3t²(P3-P2)
+    return 3.0f * u * u * (m_bezierP1 - m_bezierP0)      // 3(1-t)²(P1-P0)
+         + 6.0f * u * t * (m_bezierP2 - m_bezierP1)      // 6(1-t)t(P2-P1)
+         + 3.0f * t * t * (m_bezierP3 - m_bezierP2);     // 3t²(P3-P2)
 }
 
 float Enemy::lookAt(const glm::vec4& targetPosition) const
@@ -185,6 +261,14 @@ void Enemy::applyKnockback(float dirX, float dirZ, float force)
 {
     m_knockbackVelX = dirX * force;
     m_knockbackVelZ = dirZ * force;
+}
+
+void Enemy::onObstacleCollision()
+{
+    m_bezierP0 = glm::vec4(m_x, 0.0f, m_z, 1.0f);
+    m_bezierT = 0.0f;
+    m_curveRecalcTimer = 0.0f; 
+    m_curveInitialized = false;
 }
 
 void Enemy::startDying()

@@ -26,6 +26,9 @@ public:
     void setPosition(float x, float z) { m_x = x; m_z = z; }
     void applyKnockback(float dirX, float dirZ, float force);
 
+    // chama apos a colisão para recalcular a curva de bezier 
+    void onObstacleCollision();
+
     bool isDying() const { return m_dying; }
     float getDeathProgress() const;
     float getDeathScale() const;

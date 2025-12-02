@@ -13,7 +13,7 @@ Player::Player()
     , m_firstPerson(true)
     , m_cameraTheta(0.0f)
     , m_cameraPhi(0.5f)
-    , m_cameraDistance(2.0f)
+    , m_cameraDistance(1.2f)
     , m_cameraYaw(-1.57079632f)
     , m_cameraPitch(0.0f)
     , m_movementSpeed(0.4f)
@@ -132,7 +132,23 @@ glm::mat4 Player::getCameraView() const
         float z = r * cos(m_cameraPhi) * cos(m_cameraTheta);
         float x = r * cos(m_cameraPhi) * sin(m_cameraTheta);
 
-        glm::vec4 camera_position_c  = glm::vec4(x, y, z, 1.0f);
+        glm::vec4 camera_offset = glm::vec4(x, y, z, 0.0f);
+        glm::vec4 camera_position_c = m_position + camera_offset;
+
+        const float arenaMinX = -4.2f;
+        const float arenaMaxX = 4.2f;
+        const float arenaMinZ = -1.2f;
+        const float arenaMaxZ = 1.2f;
+        const float minY = 0.3f;
+        const float maxY = 2.8f;
+
+        if (camera_position_c.x < arenaMinX) camera_position_c.x = arenaMinX;
+        if (camera_position_c.x > arenaMaxX) camera_position_c.x = arenaMaxX;
+        if (camera_position_c.z < arenaMinZ) camera_position_c.z = arenaMinZ;
+        if (camera_position_c.z > arenaMaxZ) camera_position_c.z = arenaMaxZ;
+        if (camera_position_c.y < minY) camera_position_c.y = minY;
+        if (camera_position_c.y > maxY) camera_position_c.y = maxY;
+
         glm::vec4 camera_lookat_l    = m_position;
         glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c;
         glm::vec4 camera_up_vector   = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
@@ -221,8 +237,8 @@ void Player::handleScroll(float offset)
 {
     m_cameraDistance -= 0.1f * offset;
 
-    float zoom_min = 0.4f;
-    float zoom_max = 2.0f;
+    float zoom_min = 0.5f;
+    float zoom_max = 1.8f;
     if (m_cameraDistance < zoom_min)
         m_cameraDistance = zoom_min;
     if (m_cameraDistance > zoom_max)
@@ -271,7 +287,24 @@ glm::vec4 Player::getCameraPosition() const
         float y = r * sin(m_cameraPhi);
         float z = r * cos(m_cameraPhi) * cos(m_cameraTheta);
         float x = r * cos(m_cameraPhi) * sin(m_cameraTheta);
-        return m_position + glm::vec4(x, y, z, 0.0f);
+
+        glm::vec4 camera_position = m_position + glm::vec4(x, y, z, 0.0f);
+
+        const float arenaMinX = -4.2f;
+        const float arenaMaxX = 4.2f;
+        const float arenaMinZ = -1.2f;
+        const float arenaMaxZ = 1.2f;
+        const float minY = 0.3f;
+        const float maxY = 2.8f;
+
+        if (camera_position.x < arenaMinX) camera_position.x = arenaMinX;
+        if (camera_position.x > arenaMaxX) camera_position.x = arenaMaxX;
+        if (camera_position.z < arenaMinZ) camera_position.z = arenaMinZ;
+        if (camera_position.z > arenaMaxZ) camera_position.z = arenaMaxZ;
+        if (camera_position.y < minY) camera_position.y = minY;
+        if (camera_position.y > maxY) camera_position.y = maxY;
+
+        return camera_position;
     }
 }
 
@@ -313,7 +346,7 @@ void Player::reset()
     m_firstPerson = true;
     m_cameraTheta = 0.0f;
     m_cameraPhi = 0.5f;
-    m_cameraDistance = 2.0f;
+    m_cameraDistance = 1.2f;  
     m_cameraYaw = -1.57079632f;
     m_cameraPitch = 0.0f;
 }
