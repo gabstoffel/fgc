@@ -1,3 +1,19 @@
+// ============================================================================
+// GAME.CPP - Loop Principal e Lógica do Jogo
+// ============================================================================
+//
+// Este arquivo implementa o loop principal do jogo e gerencia:
+// - Estados do jogo (menu, jogando, pausado, game over, vitória)
+// - Atualização de entidades baseada no tempo (deltaTime)
+// - Detecção e resolução de colisões
+// - Spawn de inimigos e power-ups
+//
+// REQUISITOS IMPLEMENTADOS:
+// - REQUISITO 5: Testes de colisão (AABB-AABB, AABB-Plano, Ponto-Esfera)
+// - REQUISITO 10: Animações baseadas no tempo (deltaTime)
+//
+// ============================================================================
+
 #include "Game.h"
 #include "Input.h"
 #include "matrices.h"
@@ -110,17 +126,35 @@ bool Game::init()
     return true;
 }
 
+// ============================================================================
+// LOOP PRINCIPAL DO JOGO
+// ============================================================================
+// REQUISITO 10: Animações baseadas no tempo
+//
+// O loop principal usa deltaTime para garantir que o jogo rode na mesma
+// velocidade independente da taxa de frames. Isso é calculado como:
+//
+//     deltaTime = tempoAtual - tempoUltimoFrame
+//
+// Todas as animações e movimentos usam essa variável para interpolar
+// posições de forma suave e consistente.
+// ============================================================================
 void Game::run()
 {
     while (!glfwWindowShouldClose(m_window))
     {
+        // Calcula o tempo decorrido desde o último frame
+        // Isso garante movimento suave independente do FPS
         double currentTime = glfwGetTime();
         float deltaTime = static_cast<float>(currentTime - m_lastFrameTime);
         m_lastFrameTime = currentTime;
 
+        // Atualiza a lógica do jogo (física, colisões, IA)
         update(deltaTime);
+        // Renderiza a cena atual
         render(deltaTime);
 
+        // Troca os buffers (double buffering) e processa eventos
         glfwSwapBuffers(m_window);
         glfwPollEvents();
     }
@@ -311,19 +345,54 @@ void Game::render(float deltaTime)
     }
 }
 
+// ============================================================================
+// SISTEMA DE COLISÕES
+// ============================================================================
+// REQUISITO 5: Três tipos de testes de intersecção
+//
+// Este sistema implementa detecção e resolução de colisões usando:
+//
+// 1. AABB x Plano (testAABBPlane, resolveAABBPlane):
+//    - Jogador/inimigos vs chão, paredes e teto
+//    - Mantém entidades dentro da arena
+//
+// 2. AABB x AABB (testAABBAABB):
+//    - Jogador vs pilares (obstáculos)
+//    - Jogador vs inimigos (causa dano)
+//    - Inimigos vs pilares (recalcula caminho Bézier)
+//
+// 3. Ponto x Esfera (testPointSphere):
+//    - Projéteis vs inimigos/boss/jogador
+//    - Jogador vs boss dragão
+//    - Jogador vs power-ups de vida
+//
+// As funções de colisão estão implementadas em collisions.cpp
+// ============================================================================
 void Game::handleCollisions()
 {
+    // Define a "caixa" de colisão do jogador (half-extents da AABB)
     glm::vec3 player_extents = glm::vec3(0.108f, 0.108f, 0.108f);
     glm::vec4 player_pos_4d = m_player.getPosition();
     glm::vec3 player_pos_3d = glm::vec3(player_pos_4d.x, player_pos_4d.y, player_pos_4d.z);
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // COLISÃO AABB x PLANO: Jogador vs Chão
+    // ─────────────────────────────────────────────────────────────────────────
+    // O plano do chão é definido pela equação: y = 0 (normal apontando para cima)
+    // Se o jogador penetrar o chão, ele é empurrado de volta para cima
     glm::vec4 floor_plane = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
     resolveAABBPlane(player_pos_3d, player_extents, floor_plane);
 
+    // Limita a posição do jogador aos limites da arena
     glm::vec3 arena_min = glm::vec3(-4.3f, -10.0f, -1.3f);
     glm::vec3 arena_max = glm::vec3(4.3f, 10.0f, 1.3f);
     clampPositionToBox(player_pos_3d, arena_min, arena_max);
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // COLISÃO AABB x AABB: Jogador vs Pilares
+    // ─────────────────────────────────────────────────────────────────────────
+    // Testa colisão entre a AABB do jogador e cada pilar da arena
+    // Se houver colisão, empurra o jogador para fora no eixo de menor penetração
     for (const Pillar& pillar : m_pillars)
     {
         glm::vec3 pillarExtents(pillar.sizeXZ * 0.5f, pillar.height * 0.5f, pillar.sizeXZ * 0.5f);
@@ -353,6 +422,12 @@ void Game::handleCollisions()
 
     m_player.updatePositionAfterCollision(player_pos_3d);
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // COLISÃO AABB x AABB: Jogador vs Inimigos
+    // ─────────────────────────────────────────────────────────────────────────
+    // Testa colisão entre jogador e cada inimigo
+    // Se houver colisão: jogador toma dano, é empurrado para fora,
+    // e o inimigo recebe knockback na direção oposta
     std::vector<Enemy>& enemies = const_cast<std::vector<Enemy>&>(m_enemyManager.getEnemies());
     float enemyRadius = 0.10f;
     glm::vec3 enemyExtents(enemyRadius, enemyRadius, enemyRadius);
@@ -400,6 +475,12 @@ void Game::handleCollisions()
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // COLISÃO PONTO x ESFERA: Jogador vs Boss Dragão
+    // ─────────────────────────────────────────────────────────────────────────
+    // O boss usa uma esfera de colisão (bounding sphere) em vez de AABB
+    // Isso funciona bem para o modelo do dragão que é mais arredondado
+    // testPointSphere verifica se ||jogador - dragão|| <= raio
     if (m_dragonBossAlive)
     {
         glm::vec4 dragonPos4 = m_dragonBoss.getPosition();
@@ -407,7 +488,7 @@ void Game::handleCollisions()
 
         float bossCollisionRadius = 0.55f;
 
-        // Teste usando função genérica
+        // Teste Ponto x Esfera: verifica se o jogador está dentro da esfera do boss
         if (testPointSphere(player_pos_3d, dragonPos, bossCollisionRadius))
         {
             m_player.takeDamage(m_enemyDamage * 2);
@@ -515,11 +596,25 @@ void Game::handleShooting()
     printf("Projectile spawned at (%.2f, %.2f, %.2f)\n", spawnPos.x, spawnPos.y, spawnPos.z);
 }
 
+// ============================================================================
+// COLISÃO DE PROJÉTEIS
+// ============================================================================
+// REQUISITO 5: Teste Ponto x Esfera
+//
+// Projéteis usam teste Ponto x Esfera para colisão porque:
+// 1. São objetos pequenos e rápidos
+// 2. A esfera aproxima bem o formato de uma bola de fogo
+// 3. É mais eficiente que AABB para objetos esféricos
+//
+// testPointSphere(ponto, centro, raio) retorna true se:
+//     ||ponto - centro||² <= raio²
+// ============================================================================
 void Game::handleProjectileCollisions()
 {
     std::vector<Projectile>& projectiles = m_projectileManager.getProjectiles();
     std::vector<Enemy>& enemies = const_cast<std::vector<Enemy>&>(m_enemyManager.getEnemies());
 
+    // Raios das esferas de colisão para cada tipo de entidade
     float enemyRadius = 0.10f;
     float bossRadius = 0.45f;
     float projectileRadius = 0.05f;

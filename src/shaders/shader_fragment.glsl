@@ -1,14 +1,50 @@
 #version 330 core
 
-// Atributos de fragmentos recebidos como entrada ("in") pelo Fragment Shader.
-// Neste exemplo, este atributo foi gerado pelo rasterizador como a
-// interpolação da posição global e a normal de cada vértice, definidas em
-// "shader_vertex.glsl" e "main.cpp".
-in vec4 position_world;
-in vec4 normal;
-in vec4 position_model;
-in vec2 texcoords;
-in vec3 vertex_color;
+// ============================================================================
+// FRAGMENT SHADER - Iluminação Phong/Blinn-Phong e Mapeamento de Texturas
+// ============================================================================
+//
+// Este shader processa cada fragmento (pixel) e calcula sua cor final usando:
+// 1. Mapeamento de texturas (coordenadas UV)
+// 2. Modelo de iluminação de Blinn-Phong (difusa + especular)
+// 3. Múltiplas fontes de luz pontuais (tochas)
+//
+// REQUISITOS IMPLEMENTADOS:
+// - REQUISITO 6: Modelos de iluminação difusa (Lambert) e Blinn-Phong
+// - REQUISITO 7: Modelo de interpolação Phong (iluminação por fragmento)
+// - REQUISITO 8: Mapeamento de texturas em todos os objetos
+//
+// MODELOS DE ILUMINAÇÃO:
+//
+// 1. LAMBERT (Difusa):
+//     I_difusa = Kd * I_luz * max(n · l, 0)
+//     - Luz espalha igualmente em todas as direções
+//     - Intensidade proporcional ao cosseno do ângulo
+//
+// 2. BLINN-PHONG (Especular):
+//     I_especular = Ks * I_luz * max(n · h, 0)^q
+//     - h = normalize(l + v) é o vetor "halfway" entre luz e visão
+//     - Simula reflexão especular (brilhos)
+//     - q controla a "dureza" do brilho (maior q = brilho mais concentrado)
+//
+// A diferença de BLINN-PHONG para PHONG clássico:
+//     - Phong: usa vetor de reflexão r = 2(n·l)n - l, calcula r·v
+//     - Blinn-Phong: usa vetor halfway h, calcula n·h (mais eficiente)
+//
+// MODELO DE INTERPOLAÇÃO PHONG vs GOURAUD:
+//     - GOURAUD: iluminação calculada por vértice, cor interpolada
+//     - PHONG: normal interpolada, iluminação calculada por fragmento
+//     - Phong é mais preciso para highlights, Gouraud é mais rápido
+//
+// ============================================================================
+
+// Atributos interpolados recebidos do vertex shader via rasterizador
+// O rasterizador interpola esses valores entre os vértices do triângulo
+in vec4 position_world;   // Posição do fragmento em coordenadas do mundo
+in vec4 normal;           // Normal interpolada (para Phong shading)
+in vec4 position_model;   // Posição em coordenadas do modelo
+in vec2 texcoords;        // Coordenadas UV interpoladas
+in vec3 vertex_color;     // Cor calculada no vertex shader (Gouraud)
 // Matrizes computadas no código C++ e enviadas para a GPU
 uniform mat4 model;
 uniform mat4 view;
@@ -81,30 +117,66 @@ float norm(vec4 v)
     return sqrt( vx*vx + vy*vy + vz*vz );
 }
 
+// ============================================================================
+// FUNÇÃO DE ILUMINAÇÃO BLINN-PHONG
+// ============================================================================
+// REQUISITO 6: Modelo de iluminação difusa (Lambert) e Blinn-Phong
+// REQUISITO 7: Modelo de interpolação Phong (iluminação por fragmento)
+//
+// Esta função calcula a contribuição de luz de todas as tochas usando:
+//
+// LAMBERT (Difusa):
+//     diffuse = Kd * cor_luz * max(n · l, 0) * intensidade * atenuação
+//
+// BLINN-PHONG (Especular):
+//     h = normalize(l + v)  // vetor halfway
+//     specular = Ks * cor_luz * pow(max(n · h, 0), shininess) * intensidade * atenuação
+//
+// Parâmetros:
+//     fragPos   - posição do fragmento em coordenadas do mundo
+//     normal    - vetor normal da superfície (normalizado)
+//     viewDir   - direção do fragmento para a câmera (normalizado)
+//     Kd        - coeficiente de reflexão difusa (cor do material)
+//     Ks        - coeficiente de reflexão especular
+//     shininess - expoente especular (dureza do brilho)
+// ============================================================================
 vec3 calculateTorchLighting(vec4 fragPos, vec4 normal, vec4 viewDir,
                             vec3 Kd, vec3 Ks, float shininess)
 {
     vec3 totalLight = vec3(0.0);
 
+    // Itera sobre todas as tochas (fontes de luz pontuais)
     for (int i = 0; i < num_torches; i++)
     {
         vec3 lightPos = torch_positions[i];
         vec3 lightColor = torch_colors[i];
         float intensity = torch_intensities[i];
 
+        // Vetor do fragmento para a luz
         vec4 lightDir = vec4(lightPos, 1.0) - fragPos;
         float distance = length(lightDir.xyz);
         lightDir = normalize(lightDir);
 
+        // Atenuação com distância (luz enfraquece com d²)
         float attenuation = 1.0 / (1.0 + 0.7 * distance + 1.8 * distance * distance);
 
-        // Diffuse (Lambert)
+        // ─────────────────────────────────────────────────────────────────────
+        // COMPONENTE DIFUSA (Lambert)
+        // ─────────────────────────────────────────────────────────────────────
+        // A intensidade é proporcional ao cosseno do ângulo entre n e l
+        // max() garante que superfícies viradas para longe da luz = 0
         float NdotL = max(dot(normal, lightDir), 0.0);
         vec3 diffuse = Kd * lightColor * NdotL * intensity * attenuation;
 
-        // Specular (Blinn-Phong)
+        // ─────────────────────────────────────────────────────────────────────
+        // COMPONENTE ESPECULAR (Blinn-Phong)
+        // ─────────────────────────────────────────────────────────────────────
+        // Vetor halfway h = normalize(l + v)
+        // Blinn-Phong é mais eficiente que Phong clássico pois evita
+        // calcular o vetor de reflexão
         vec4 halfwayDir = normalize(lightDir + viewDir);
         float NdotH = max(dot(normal, halfwayDir), 0.0);
+        // pow() com shininess controla a "concentração" do brilho
         vec3 specular = Ks * lightColor * pow(NdotH, shininess) * intensity * attenuation;
 
         totalLight += diffuse + specular;
@@ -137,15 +209,25 @@ vec3 calculateTorchLightingDiffuseOnly(vec4 fragPos, vec4 normal, vec3 Kd)
     return totalLight;
 }
 
+// ============================================================================
+// FUNÇÃO PRINCIPAL DO FRAGMENT SHADER
+// ============================================================================
+// Calcula a cor final de cada fragmento usando:
+// - Amostragem de texturas
+// - Modelo de iluminação apropriado para cada tipo de objeto
+// - Correção gamma para display sRGB
+// ============================================================================
 void main()
 {
-    // Obtemos a posição da câmera utilizando a inversa da matriz que define o
-    // sistema de coordenadas da câmera.
+    // Obtém a posição da câmera invertendo a matriz view
+    // Usado para calcular o vetor de visão v = normalize(camera - fragmento)
     vec4 origin = vec4(0.0, 0.0, 0.0, 1.0);
     vec4 camera_position = inverse(view) * origin;
-    // Espectro da fonte de iluminação
+
+    // Espectro da fonte de iluminação direcional (não usada atualmente)
     vec3 I = vec3(1.2,1.2,1.2);
 
+    // Luz ambiente global (iluminação base da cena)
     vec3 Ia = vec3(0.10, 0.08, 0.05);
     // O fragmento atual é coberto por um ponto que percente à superfície de um
     // dos objetos virtuais da cena. Este ponto, p, possui uma posição no
@@ -217,14 +299,38 @@ void main()
         q = 1.0;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // MONSTRO - Iluminação Blinn-Phong com Texturas
+    // ─────────────────────────────────────────────────────────────────────────
+    // REQUISITO 6: Modelo de iluminação difusa (Lambert) + Blinn-Phong
+    // REQUISITO 7: Modelo de interpolação PHONG (iluminação por fragmento)
+    // REQUISITO 8: Mapeamento de texturas
+    //
+    // A normal 'n' foi INTERPOLADA pelo rasterizador entre os vértices.
+    // Calculamos a iluminação aqui no fragment shader (por fragmento),
+    // o que caracteriza o modelo de interpolação de PHONG.
+    //
+    // Comparando com o chão/paredes que usam GOURAUD (vertex shader),
+    // os monstros têm highlights especulares mais nítidos e precisos.
+    // ─────────────────────────────────────────────────────────────────────────
     if (object_id == MONSTRO)
     {
+        // Amostra a textura da pele do monstro nas coordenadas UV
         vec3 pele = texture(TextureImage0, vec2(U,V)).rgb;
+
+        // Define coeficientes de material:
+        // Kd = reflexão difusa (usa cor da textura)
+        // Ks = reflexão especular (brilhos)
+        // Ka = reflexão ambiente
         vec3 Kd_monster = pele;
-        vec3 Ks_monster = vec3(0.2);
+        vec3 Ks_monster = vec3(0.2);  // Levemente brilhante
         vec3 Ka_monster = pele;
 
+        // Calcula iluminação Blinn-Phong (difusa + especular) para cada tocha
+        // shininess = 64 = brilho médio-alto
         vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_monster, Ks_monster, 64.0);
+
+        // Cor final = ambiente + iluminação das tochas
         color.rgb = Ka_monster * Ia + pointLighting;
     }
     else if (object_id == DYING_ENEMY)
@@ -233,21 +339,41 @@ void main()
         vec3 flashColor = vec3(1.0, 0.9, 0.5);
         color.rgb = mix(pele, flashColor, 0.7) * 1.5;
     }
+    // ─────────────────────────────────────────────────────────────────────────
+    // ARENA (Chão, Paredes, Teto) - Iluminação GOURAUD
+    // ─────────────────────────────────────────────────────────────────────────
+    // REQUISITO 7: Modelo de interpolação GOURAUD
+    // REQUISITO 8: Mapeamento de texturas
+    //
+    // Para a arena, usamos iluminação GOURAUD:
+    // - A iluminação foi calculada no VERTEX SHADER (por vértice)
+    // - O valor 'vertex_color' já vem INTERPOLADO pelo rasterizador
+    // - Aqui apenas multiplicamos pela textura
+    //
+    // Resultado: iluminação mais suave, sem highlights especulares nítidos
+    // Isso é adequado para superfícies grandes e difusas como paredes.
+    //
+    // Comparando GOURAUD vs PHONG:
+    // - Gouraud: iluminação em 3 vértices → interpolada → multiplica textura
+    // - Phong: normal interpolada → iluminação por pixel → mais preciso
+    // ─────────────────────────────────────────────────────────────────────────
     else if(object_id >= 2 && object_id<= 7)
     {
+        // Seleciona a textura apropriada para cada superfície
         vec3 tex;
         if(object_id == PLANE)
         {
-            tex = texture(TextureImage2, vec2(U,V)).rgb;
+            tex = texture(TextureImage2, vec2(U,V)).rgb;  // Textura do chão
         }
         else if(object_id == CEILING)
         {
-            tex = texture(TextureImage3, vec2(U,V)).rgb;
+            tex = texture(TextureImage3, vec2(U,V)).rgb;  // Textura do teto
         }
         else
         {
-            tex = texture(TextureImage1, vec2(U,V)).rgb;
+            tex = texture(TextureImage1, vec2(U,V)).rgb;  // Textura das paredes
         }
+        // Combina cor Gouraud (do vertex shader) com textura
         color.rgb=vertex_color*tex;
     }
     else if(object_id == CUBE){
@@ -277,13 +403,36 @@ void main()
         vec3 pointLighting = calculateTorchLighting(p, n, v, Kd_dragon, Ks_dragon, 64.0);
         color.rgb = Ka_dragon * Ia + pointLighting;
     }
+    // ─────────────────────────────────────────────────────────────────────────
+    // PROJÉTIL - Mapeamento de Textura ESFÉRICO
+    // ─────────────────────────────────────────────────────────────────────────
+    // REQUISITO 8: Mapeamento de texturas (projeção esférica)
+    //
+    // Para objetos esféricos como projéteis, usamos coordenadas UV baseadas
+    // em coordenadas esféricas (theta, phi) em vez de coordenadas planares:
+    //
+    //     theta = atan2(x, z)      // ângulo horizontal [-π, π]
+    //     phi = asin(y / raio)     // ângulo vertical [-π/2, π/2]
+    //
+    //     U = (theta + π) / (2π)   // normaliza para [0, 1]
+    //     V = (phi + π/2) / π      // normaliza para [0, 1]
+    //
+    // Isso "envolve" a textura ao redor da esfera de forma natural,
+    // similar ao mapeamento de textura de um globo terrestre.
+    // ─────────────────────────────────────────────────────────────────────────
     else if(object_id == PROJECTILE)
     {
+        // Centro da bounding box (centro da esfera)
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
+        // Vetor do centro para o ponto atual na superfície
         vec4 vetor_centro = position_model-bbox_center;
         float raio = length(vetor_centro);
-        float arcotangente = atan(vetor_centro.x,vetor_centro.z);
-        float arcsen = asin(vetor_centro.y/raio);
+
+        // Converte para coordenadas esféricas
+        float arcotangente = atan(vetor_centro.x,vetor_centro.z);  // theta
+        float arcsen = asin(vetor_centro.y/raio);                   // phi
+
+        // Normaliza para coordenadas UV [0, 1]
         U = (arcotangente+M_PI)/(2*M_PI);
         V = (arcsen+M_PI/2)/M_PI;
 
@@ -399,8 +548,20 @@ void main()
         // Cor final do fragmento calculada com uma combinação dos termos difuso, especular, e ambiente.
         color.rgb = lambert_diffuse_term + ambient_term + phong_specular_term;
     }
+    // Canal alpha = 1 (totalmente opaco)
     color.a=1;
-    // Cor final com correção gamma, considerando monitor sRGB.
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CORREÇÃO GAMMA
+    // ─────────────────────────────────────────────────────────────────────────
+    // Monitores sRGB têm uma curva de resposta não-linear (gamma ~2.2)
+    // Para que as cores calculadas linearmente apareçam corretas no monitor,
+    // aplicamos a correção gamma inversa:
+    //
+    //     cor_final = cor_linear ^ (1/2.2)
+    //
+    // Isso "levanta" os valores escuros, compensando a curva do monitor.
+    // ─────────────────────────────────────────────────────────────────────────
     color.rgb = pow(color.rgb, vec3(1.0,1.0,1.0)/2.2);
 }
 

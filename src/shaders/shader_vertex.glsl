@@ -1,5 +1,28 @@
 #version 330 core
 
+// ============================================================================
+// VERTEX SHADER - Transformações e Iluminação Gouraud
+// ============================================================================
+//
+// Este shader processa cada vértice da geometria e realiza:
+// 1. Transformação de coordenadas (modelo → mundo → câmera → NDC)
+// 2. Cálculo de iluminação Gouraud para superfícies específicas
+//
+// REQUISITOS IMPLEMENTADOS:
+// - REQUISITO 7: Modelo de interpolação Gouraud
+//   (cálculo de iluminação POR VÉRTICE, interpolado pelo rasterizador)
+//
+// GOURAUD SHADING (Modelo de Interpolação):
+//     - A cor é calculada no vertex shader para cada vértice
+//     - O rasterizador INTERPOLA essas cores entre os vértices
+//     - Resultado: iluminação mais suave mas menos precisa em highlights
+//     - Usado aqui para: chão, paredes, teto (superfícies difusas)
+//
+// A diferença para Phong shading é que em Phong a iluminação é calculada
+// no FRAGMENT SHADER (por fragmento), resultando em highlights mais nítidos.
+//
+// ============================================================================
+
 // Atributos de vértice recebidos como entrada ("in") pelo Vertex Shader.
 // Veja a função BuildTrianglesAndAddToVirtualScene() em "main.cpp".
 layout (location = 0) in vec4 model_coefficients;
@@ -70,37 +93,64 @@ void main()
     normal = inverse(transpose(model)) * normal_coefficients;
     normal.w = 0.0;
     texcoords = texture_coefficients;
+    // ─────────────────────────────────────────────────────────────────────────
+    // ILUMINAÇÃO GOURAUD (Por Vértice)
+    // ─────────────────────────────────────────────────────────────────────────
+    // REQUISITO 7: Modelo de interpolação Gouraud
+    //
+    // Para objetos da arena (chão, paredes, teto), calculamos a iluminação
+    // aqui no vertex shader. A cor resultante (vertex_color) será INTERPOLADA
+    // pelo rasterizador e recebida pelo fragment shader.
+    //
+    // Usamos apenas iluminação DIFUSA (Lambert) para estas superfícies:
+    //     I_difusa = Kd * I_luz * max(n · l, 0) * atenuação
+    //
+    // onde:
+    //     Kd = coeficiente de reflexão difusa do material
+    //     I_luz = intensidade/cor da fonte de luz
+    //     n = vetor normal da superfície (normalizado)
+    //     l = vetor direção para a luz (normalizado)
+    //     atenuação = 1 / (1 + 0.7*d + 1.8*d²) para simular queda com distância
+    // ─────────────────────────────────────────────────────────────────────────
     vec3 Kd;
     vec3 Ka;
     if(object_id >= 2 && object_id<= 7){
+        // Normal em coordenadas do mundo (para cálculo de iluminação)
         vec4 n = normalize(normal);
         vec4 world_pos = model * model_coefficients;
 
+        // Luz ambiente (iluminação base mesmo sem luz direta)
         vec3 Ia = vec3(0.10, 0.08, 0.05);
 
+        // Define coeficientes de material baseado no tipo de superfície
         if(object_id == PLANE){
-            Kd = vec3(0.2,0.2,0.2);
+            Kd = vec3(0.2,0.2,0.2);  // Chão mais escuro
             Ka = vec3(0.1,0.1,0.1);
         }
         else{
-            Kd = vec3(0.3,0.3,0.3);
+            Kd = vec3(0.3,0.3,0.3);  // Paredes mais claras
             Ka = vec3(0.15,0.15,0.15);
         }
 
+        // Acumula contribuição de todas as tochas (fontes de luz pontuais)
         vec3 diffuse = vec3(0.0);
         for(int i = 0; i < num_torches; i++)
         {
+            // Vetor do vértice para a luz
             vec3 to_light = torch_positions[i] - world_pos.xyz;
             float dist = length(to_light);
-            vec3 l = to_light / dist;
+            vec3 l = to_light / dist;  // Direção normalizada
 
+            // Atenuação quadrática (luz enfraquece com distância)
             float attenuation = 1.0 / (1.0 + 0.7 * dist + 1.8 * dist * dist);
 
-            // Lambert diffuse (Gouraud - computed per vertex, then interpolated)
+            // GOURAUD: Lambert diffuse calculado POR VÉRTICE
+            // O resultado será interpolado pelo rasterizador
             float NdotL = max(dot(n.xyz, l), 0.0);
             diffuse += torch_colors[i] * NdotL * torch_intensities[i] * attenuation;
         }
 
+        // Cor final do vértice = ambiente + difusa (será interpolada)
         vertex_color = Ka * Ia + Kd * diffuse;
     }
     else

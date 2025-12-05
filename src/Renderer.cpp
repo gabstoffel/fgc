@@ -1,3 +1,30 @@
+// ============================================================================
+// RENDERER.CPP - Sistema de Renderização OpenGL
+// ============================================================================
+//
+// Este arquivo implementa toda a renderização do jogo usando OpenGL 3.3+:
+// - Carregamento de modelos 3D (.obj) via tinyobjloader
+// - Carregamento de texturas via stb_image
+// - Gerenciamento de VAO/VBO para geometria
+// - Pilha de matrizes modelo para objetos compostos
+// - Iluminação com múltiplas fontes de luz (tochas)
+//
+// REQUISITOS IMPLEMENTADOS:
+// - REQUISITO 1: Malhas poligonais complexas (carregamento de .obj)
+// - REQUISITO 2: Transformações geométricas (pilha de matrizes modelo)
+// - REQUISITO 4: Instâncias de objetos (mesmo VAO, diferentes matrizes)
+// - REQUISITO 8: Mapeamento de texturas
+//
+// PILHA DE MATRIZES MODELO:
+// Usada para criar objetos compostos (ex: arqueira + varinha).
+// A varinha é "filha" da arqueira na hierarquia de transformações:
+//     PushMatrix(model_arqueira)
+//         model_varinha = model_arqueira * transformacoes_locais
+//         renderiza varinha
+//     PopMatrix()
+//
+// ============================================================================
+
 #include "Renderer.h"
 #include "Player.h"
 #include "Enemy.h"
@@ -18,13 +45,33 @@
 void TextRendering_Init();
 void TextRendering_PrintString(GLFWwindow* window, const std::string &str, float x, float y, float scale);
 
+// ============================================================================
+// PILHA DE MATRIZES MODELO
+// ============================================================================
+// REQUISITO 2: Transformações geométricas (modelo composto)
+//
+// A pilha de matrizes permite criar hierarquias de objetos, onde a
+// transformação de um objeto "pai" afeta seus "filhos".
+//
+// Exemplo: Arqueira segurando varinha
+//     1. Aplica transformações da arqueira (translação, rotação, escala)
+//     2. PushMatrix() - salva a matriz atual
+//     3. Aplica transformações locais da varinha (offset da mão)
+//     4. Renderiza varinha
+//     5. PopMatrix() - restaura a matriz da arqueira
+//
+// Isso é equivalente à multiplicação de matrizes:
+//     M_varinha = M_arqueira * M_offset_mao * M_escala_varinha
+// ============================================================================
 static std::stack<glm::mat4> g_MatrixStack;
 
+// Salva a matriz atual na pilha (antes de aplicar transformações locais)
 static void PushMatrix(glm::mat4 M)
 {
     g_MatrixStack.push(M);
 }
 
+// Restaura a matriz do topo da pilha (após renderizar objeto filho)
 static void PopMatrix(glm::mat4& M)
 {
     if (g_MatrixStack.empty())
@@ -261,28 +308,59 @@ void Renderer::renderArena()
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(44*sizeof(GLuint)));
 }
 
+// ============================================================================
+// RENDERIZAÇÃO DO JOGADOR (Modelo Composto)
+// ============================================================================
+// REQUISITO 2: Transformações geométricas controladas pelo usuário
+//
+// O jogador é um MODELO COMPOSTO formado por:
+//     - Arqueira (corpo principal)
+//     - Varinha (arma, "filha" da arqueira na hierarquia)
+//
+// A varinha herda as transformações da arqueira através da pilha de matrizes:
+//     M_varinha = M_arqueira * M_offset_mao * M_escala_varinha
+//
+// Isso garante que quando a arqueira se move ou rotaciona,
+// a varinha acompanha automaticamente.
+// ============================================================================
 void Renderer::renderPlayer(const Player& player)
 {
     glm::mat4 model = Matrix_Identity();
     glm::vec4 position = player.getPosition();
 
+    // Salva a matriz identidade na pilha
     PushMatrix(model);
+
+    // Ajusta a posição Y para que os pés toquem o chão
     float dist_chao = m_virtualScene["Arqueira"].bbox_min.y;
     dist_chao=0-dist_chao;
     dist_chao=dist_chao*0.001f;
+
+    // Aplica transformações da arqueira: translação + rotação baseada no movimento
     model = model * Matrix_Translate(position.x, dist_chao + position.y - 0.101f, position.z)
                   * Matrix_Rotate_Y(player.getMovementAngle());
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // RENDERIZAÇÃO DA VARINHA (Objeto Filho)
+    // ─────────────────────────────────────────────────────────────────────────
+    // Salva a matriz da arqueira antes de aplicar transformações da varinha
     PushMatrix(model);
-        //Varinha
+        // Aplica offset para posicionar a varinha na "mão" da arqueira
+        // + rotação e escala específicas da varinha
         model = model*Matrix_Translate(0.057f,0.06f,0.02f)*Matrix_Rotate_X(M_PI/4)* Matrix_Scale(0.09f, 0.09f, 0.09f);
         glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(m_objectIdUniform, 10);
         drawVirtualObject("Varinha");
+    // Restaura a matriz da arqueira
     PopMatrix(model);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // RENDERIZAÇÃO DA ARQUEIRA (Objeto Pai)
+    // ─────────────────────────────────────────────────────────────────────────
     model=model* Matrix_Scale(0.001f, 0.001f, 0.001f);
     glUniformMatrix4fv(m_modelUniform, 1, GL_FALSE, glm::value_ptr(model));
     glUniform1i(m_objectIdUniform, 1);
-    // Renderriza o player
+    // Renderiza o player
     if (m_virtualScene.find("Arqueira") != m_virtualScene.end())
         drawVirtualObject("Arqueira");
     else if (m_virtualScene.find("cube_faces") != m_virtualScene.end())
@@ -328,13 +406,34 @@ void Renderer::renderPlayerLookingAt(const Player& player, const glm::vec4& came
     PopMatrix(model);
 }
 
+// ============================================================================
+// RENDERIZAÇÃO DOS INIMIGOS (Instâncias de Objetos)
+// ============================================================================
+// REQUISITO 4: Instâncias de objetos
+//
+// Múltiplos inimigos são renderizados usando o MESMO modelo 3D (VAO),
+// mas com DIFERENTES matrizes de transformação (posição, rotação, escala).
+//
+// Cada inimigo i possui sua própria matriz modelo:
+//     M_inimigo[i] = Translate(x[i], y[i], z[i]) * Rotate(angulo[i]) * Scale(s[i])
+//
+// O VAO do modelo "turle" é vinculado uma vez e reutilizado para
+// todos os inimigos, mudando apenas a uniform "model" entre as chamadas.
+//
+// Isso é mais eficiente do que criar geometria separada para cada inimigo,
+// pois os dados de vértices são compartilhados na GPU.
+// ============================================================================
 void Renderer::renderEnemies(const EnemyManager& enemyManager, const glm::vec4& playerPosition)
 {
     const std::vector<Enemy>& enemies = enemyManager.getEnemies();
     glm::mat4 model = Matrix_Identity();
+
+    // Ajuste de altura para posicionar no chão (baseado na bounding box)
     float dist_chao = m_virtualScene["turle"].bbox_min.y;
     dist_chao=0-dist_chao;
     dist_chao=dist_chao*0.15f;
+
+    // Itera sobre todos os inimigos, renderizando cada um com sua matriz própria
     for (size_t i = 0; i < enemies.size(); i++)
     {
         float baseScale = 0.15f;
@@ -959,11 +1058,30 @@ GLuint Renderer::buildGeometry()
     return vertex_array_object_id;
 }
 
+// ============================================================================
+// CARREGAMENTO DE TEXTURAS
+// ============================================================================
+// REQUISITO 8: Mapeamento de texturas em todos os objetos
+//
+// Carrega uma imagem do disco e cria uma textura OpenGL.
+// Cada textura é associada a uma unidade de textura (GL_TEXTURE0 + n).
+//
+// Parâmetros de amostragem configurados:
+// - GL_TEXTURE_WRAP_S/T = GL_REPEAT: textura repete nas bordas
+// - GL_TEXTURE_MIN_FILTER = GL_LINEAR_MIPMAP_LINEAR: trilinear filtering
+// - GL_TEXTURE_MAG_FILTER = GL_LINEAR: bilinear filtering
+//
+// As texturas são vinculadas no fragment shader via samplers:
+//     uniform sampler2D TextureImage0;  // textura do inimigo
+//     uniform sampler2D TextureImage1;  // textura da parede
+//     etc.
+// ============================================================================
 void Renderer::LoadTextureImage(const char* filename)
 {
     printf("Carregando imagem \"%s\"... ", filename);
 
-    // Primeiro fazemos a leitura da imagem do disco
+    // Leitura da imagem usando stb_image
+    // stbi_set_flip_vertically_on_load: OpenGL espera a origem em baixo-esquerda
     stbi_set_flip_vertically_on_load(true);
     int width;
     int height;

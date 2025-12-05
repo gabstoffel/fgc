@@ -1,3 +1,35 @@
+// ============================================================================
+// ENEMY.CPP - Sistema de Inimigos e Curvas de Bézier
+// ============================================================================
+//
+// Este arquivo implementa a lógica dos inimigos, incluindo:
+// - Movimentação usando curvas de Bézier cúbicas
+// - Conversão de curvas Hermite para Bézier
+// - Continuidade C1 entre curvas consecutivas
+// - Sistema de knockback e recálculo de trajetória
+//
+// REQUISITOS IMPLEMENTADOS:
+// - REQUISITO 4: Instâncias de objetos (EnemyManager gerencia múltiplos inimigos)
+// - REQUISITO 9: Movimentação com curva de Bézier cúbica
+// - REQUISITO 10: Animações baseadas no tempo (deltaTime)
+//
+// CONCEITOS DE CURVAS DE BÉZIER (das notas de aula):
+//
+// Curva de Bézier cúbica é definida por 4 pontos de controle P0, P1, P2, P3:
+//     c(t) = (1-t)³P0 + 3(1-t)²tP1 + 3(1-t)t²P2 + t³P3,  t ∈ [0,1]
+//
+// Propriedades importantes:
+//     - c(0) = P0 (início da curva)
+//     - c(1) = P3 (fim da curva)
+//     - c'(0) = 3(P1 - P0) (tangente inicial)
+//     - c'(1) = 3(P3 - P2) (tangente final)
+//
+// Conversão Hermite → Bézier:
+//     P1 = P0 + v0/3  (onde v0 é a tangente inicial)
+//     P2 = P3 - v1/3  (onde v1 é a tangente final)
+//
+// ============================================================================
+
 #include "Enemy.h"
 #include "Player.h"
 #include "matrices.h"
@@ -28,8 +60,22 @@ Enemy::~Enemy()
 {
 }
 
+// ============================================================================
+// ATUALIZAÇÃO DO INIMIGO
+// ============================================================================
+// REQUISITO 9: Movimentação com curva de Bézier cúbica
+// REQUISITO 10: Animações baseadas no tempo
+//
+// O inimigo se move ao longo de uma curva de Bézier em direção ao jogador.
+// O parâmetro t da curva é incrementado baseado no tempo:
+//     t += (velocidade * deltaTime) / distância
+//
+// Quando t >= 1 ou o timer expira, uma nova curva é calculada
+// para perseguir a nova posição do jogador.
+// ============================================================================
 void Enemy::update(float deltaTime, const Player& player)
 {
+    // Animação de morte: apenas incrementa o timer
     if (m_dying)
     {
         m_deathTimer += deltaTime;
@@ -38,6 +84,7 @@ void Enemy::update(float deltaTime, const Player& player)
 
     glm::vec4 playerPos = player.getPosition();
 
+    // Verifica se o inimigo está em knockback (foi empurrado pelo jogador)
     bool inKnockback = (m_knockbackVelX != 0.0f || m_knockbackVelZ != 0.0f);
 
     if (inKnockback) {
