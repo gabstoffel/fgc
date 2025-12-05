@@ -331,4 +331,4 @@ O grupo começou o desenvolvimento em cima do Laboratório 2 (câmera look-at e 
 
 ## Vídeo de Apresentação
 
-[Link para o vídeo no YouTube - A SER ADICIONADO]
+[https://youtu.be/VnMNvje2p4g]
