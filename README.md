@@ -35,3 +35,30 @@ Primeira pessoa (dentro do jogo):
 ![Primeira pessoa](thumbnail/InicioJogo.png)
 Look-at (dentro do jogo):  
 ![Terceira pessoa](thumbnail/PrimeiraPessoa.png)
+
+Como jogar:  
+Menu Principal:  
+1, 2 ou 3 - Escolha de dificulade e início da partida  
+ESC - Sair do jogo  
+Durante partida:
+ESC - Voltar menu Principal  
+  Primeira pessoa:  
+  W, A, S, D - Mover personagem relativo a onde você está olhando
+  Arrastar Mouse - Alterar câmera  
+  Clicas no botão esquerdo do mouse - Atirar  
+  P - Entrar no modo pause  
+  F - Trocar para look-at  
+  Look-at:
+  W, A, S, D - Mover personagem relativo ao eixos globais  
+  P - Entrar no modo pause  
+  F - Trocar para primeira pessoa  
+  Segurar botão esquerdo do mouse e arrastar - Alterar câmera  
+  Modo pause:  
+  A, D - Trocar entre ver o modelo do player ou de inimigos spawnados  
+  P - Sair do modo pause  
+  Segurar botão esquerdo do mouse e arrastar - Alterar câmera  
+Tela resultado (vitória ou game over):  
+R - Reiniciar partida  
+M - Voltar ao menu principal  
+
+Como executar:  
