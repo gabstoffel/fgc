@@ -36,7 +36,7 @@ Primeira pessoa (dentro do jogo):
 Look-at (dentro do jogo):  
 ![Terceira pessoa](thumbnail/PrimeiraPessoa.png)
 
-Como jogar
+Como jogar  
 Menu Principal
 
 1, 2 ou 3 – Escolher dificuldade e iniciar partida
